@@ -487,31 +487,30 @@
         statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-emerald-500';
         statusText.textContent = `接続中 (${peerId})`;
       
-      peerDisplayName.textContent = `相手: ${peerId}`;
-      callStatusSubtext.textContent = '呼び出しボタンを押して通話を開始できます';
+        peerDisplayName.textContent = `相手: ${peerId}`;
+        callStatusSubtext.textContent = '呼び出しボタンを押して通話を開始できます';
 
-      chatInput.disabled = false;
-      sendMsgBtn.disabled = false;
-      callTriggerBar.classList.remove('opacity-50', 'pointer-events-none');
-      disconnectBtn.classList.remove('hidden');
-    } else if (status === 'connecting') {
-      statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-medium border border-amber-500/30';
-      statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
-      statusText.textContent = '接続中...';
-    } else {
-      statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-medium';
-      statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-slate-400';
-      statusText.textContent = '未接続';
+        chatInput.disabled = false;
+        sendMsgBtn.disabled = false;
+        callTriggerBar.classList.remove('opacity-50', 'pointer-events-none');
+        disconnectBtn.classList.remove('hidden');
+      } else if (status === 'connecting') {
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-medium border border-amber-500/30';
+        statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+        statusText.textContent = '接続中...';
+      } else {
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-medium';
+        statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-slate-400';
+        statusText.textContent = '未接続';
 
-      peerDisplayName.textContent = '接続相手: 未接続';
-      callStatusSubtext.textContent = '上部バーから相手のコードを入力して接続してください';
+        peerDisplayName.textContent = '接続相手: 未接続';
+        callStatusSubtext.textContent = '上部バーから相手のコードを入力して接続してください';
 
-      chatInput.disabled = true;
-      sendMsgBtn.disabled = true;
-      callTriggerBar.classList.add('opacity-50', 'pointer-events-none');
-      disconnectBtn.classList.add('hidden');
-    }
-  }
+        chatInput.disabled = true;
+        sendMsgBtn.disabled = true;
+        callTriggerBar.classList.add('opacity-50', 'pointer-events-none');
+        disconnectBtn.classList.add('hidden');
+      }
     }
 
     // PeerJS Setup
