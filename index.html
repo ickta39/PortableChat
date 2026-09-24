@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P2P Connect - コード1つで簡単WebRTCチャット＆通話</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- PeerJS Library for Simple Serverless P2P Signaling -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(51, 65, 85, 0.8);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(71, 85, 105, 1);
+    }
+    
+    /* Pulse Ring Animation for Calling State */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 0.3; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulse-animation {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+
+    @keyframes bounce-short {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .animate-bounce-short {
+      animation: bounce-short 1.5s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased overflow-hidden">
+
+  <!-- Header Bar -->
+  <header class="bg-slate-800/90 backdrop-blur border-b border-slate-700/60 px-4 py-3 flex items-center justify-between z-10">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+        <i class="fa-solid fa-bolt text-lg"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-base md:text-lg leading-tight text-white flex items-center gap-2">
+          P2P Connect Lite
+          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">ワンコード接続</span>
+        </h1>
+        <p class="text-xs text-slate-400">サーバー構築不要・6桁コードで即通話</p>
+      </div>
+    </div>
+
+    <!-- Status Indicator & Setup Toggle -->
+    <div class="flex items-center gap-3">
+      <div id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-700 border border-slate-600 text-slate-300 text-xs font-medium">
+        <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+        <span id="statusText">未接続</span>
+      </div>
+      <button id="openSetupBtn" class="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg shadow-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-key"></i>
+        <span>ルーム接続</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+
+    <!-- Video / Call Workspace (Left/Top) -->
+    <section id="mediaContainer" class="flex-1 bg-slate-950 relative flex flex-col justify-center items-center p-3 md:p-6 transition-all duration-300">
+      
+      <!-- Video Streams Container -->
+      <div class="relative w-full h-full max-w-5xl max-h-[82vh] flex items-center justify-center rounded-2xl overflow-hidden bg-slate-900/90 border border-slate-800 shadow-2xl">
+        
+        <!-- Remote Video -->
+        <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+
+        <!-- Video Placeholder / Avatar when video is off -->
+        <div id="videoPlaceholder" class="flex flex-col items-center justify-center gap-4 p-6 text-center">
+          <div class="w-28 h-28 rounded-full bg-slate-800/90 border-2 border-slate-700/80 flex items-center justify-center text-slate-500 text-5xl shadow-inner relative">
+            <i class="fa-solid fa-user"></i>
+            <div id="activeCallRing" class="absolute inset-0 rounded-full border-2 border-emerald-500/50 animate-ping hidden"></div>
+          </div>
+          <div>
+            <h3 id="peerDisplayName" class="text-slate-200 font-bold text-lg md:text-xl">通話相手: 未接続</h3>
+            <p id="callStatusSubtext" class="text-xs md:text-sm text-slate-400 mt-1">「ルーム接続」ボタンから6桁のコードで相手と繋がります</p>
+          </div>
+        </div>
+
+        <!-- Local Video Floating Overlay -->
+        <div id="localVideoWrapper" class="absolute bottom-4 right-4 w-36 h-28 md:w-52 md:h-40 rounded-xl overflow-hidden border-2 border-indigo-500/60 shadow-2xl bg-slate-950 hidden">
+          <video id="localVideo" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
+          <span class="absolute bottom-1.5 left-2 text-[10px] bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded-md text-slate-200 font-medium">あなた</span>
+        </div>
+
+        <!-- In-Call Floating Controls Bar -->
+        <div id="inCallControls" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-slate-900/90 backdrop-blur-md px-5 py-2.5 rounded-full border border-slate-700/80 shadow-2xl hidden">
+          <button id="toggleMicBtn" class="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700 shadow" title="マイク ON/OFF">
+            <i class="fa-solid fa-microphone text-base"></i>
+          </button>
+          <button id="toggleCamBtn" class="w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700 shadow" title="カメラ ON/OFF">
+            <i class="fa-solid fa-video text-base"></i>
+          </button>
+          <button id="hangupCallBtn" class="w-11 h-11 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center transition shadow-lg shadow-rose-600/30" title="通話を終了">
+            <i class="fa-solid fa-phone-slash text-base"></i>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Quick Call Trigger Bar -->
+      <div id="callTriggerBar" class="mt-4 flex items-center gap-3 opacity-40 pointer-events-none transition-all">
+        <button id="startAudioCallBtn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold text-xs md:text-sm transition flex items-center gap-2 shadow-lg shadow-indigo-600/20">
+          <i class="fa-solid fa-phone"></i>
+          <span>音声通話を呼び出す</span>
+        </button>
+        <button id="startVideoCallBtn" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-semibold text-xs md:text-sm transition flex items-center gap-2 shadow-lg shadow-purple-600/20">
+          <i class="fa-solid fa-video"></i>
+          <span>ビデオ通話を呼び出す</span>
+        </button>
+      </div>
+
+    </section>
+
+    <!-- Chat Sidebar -->
+    <section class="w-full md:w-80 lg:w-96 bg-slate-800/40 border-t md:border-t-0 md:border-l border-slate-700/60 flex flex-col h-64 md:h-full">
+      
+      <!-- Chat Header -->
+      <div class="px-4 py-3 border-b border-slate-700/60 flex items-center justify-between bg-slate-800/80">
+        <div class="flex items-center gap-2">
+          <i class="fa-regular fa-comments text-indigo-400"></i>
+          <span class="font-semibold text-sm text-slate-200">リアルタイムチャット</span>
+        </div>
+        <button id="clearChatBtn" class="text-xs text-slate-400 hover:text-slate-200 transition" title="履歴を消去">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </div>
+
+      <!-- Messages Area -->
+      <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 flex flex-col text-sm">
+        <div class="text-center text-xs text-slate-500 my-auto py-4">
+          <i class="fa-solid fa-lock text-slate-600 text-2xl mb-2 block"></i>
+          接続するとエンドツーエンド暗号化メッセージの送受信が可能です
+        </div>
+      </div>
+
+      <!-- Chat Input Form -->
+      <form id="chatForm" class="p-3 bg-slate-800/90 border-t border-slate-700/60 flex items-center gap-2">
+        <input 
+          type="text" 
+          id="chatInput" 
+          placeholder="メッセージを入力..." 
+          disabled
+          class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+        <button 
+          type="submit" 
+          id="sendMsgBtn" 
+          disabled
+          class="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-xl flex items-center justify-center transition shadow-md shadow-indigo-600/20 disabled:shadow-none"
+        >
+          <i class="fa-solid fa-paper-plane text-xs"></i>
+        </button>
+      </form>
+
+    </section>
+
+  </main>
+
+
+  <!-- Modal 1: Simplified One-Code Connection Modal -->
+  <div id="setupModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-5">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-handshake text-indigo-400"></i>
+          簡単ルーター接続
+        </h2>
+        <button id="closeSetupBtn" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Host Room Box -->
+      <div class="bg-slate-950 border border-indigo-500/30 p-4 rounded-2xl flex flex-col gap-2">
+        <span class="text-xs font-semibold text-indigo-400 flex items-center gap-1.5">
+          <i class="fa-solid fa-house-signal"></i>
+          あなたのルームコード (ホスト)
+        </span>
+        <div class="flex items-center justify-between bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl">
+          <span id="myRoomCode" class="font-mono font-bold text-xl tracking-wider text-emerald-400">生成中...</span>
+          <button id="copyRoomLinkBtn" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition flex items-center gap-1 shadow">
+            <i class="fa-solid fa-copy"></i>
+            <span>コードコピー</span>
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-0.5">相手にこの6桁コードを伝えるだけで接続できます。</p>
+      </div>
+
+      <div class="relative flex py-1 items-center">
+        <div class="flex-grow border-t border-slate-800"></div>
+        <span class="flex-shrink mx-3 text-slate-500 text-xs font-medium">または</span>
+        <div class="flex-grow border-t border-slate-800"></div>
+      </div>
+
+      <!-- Join Room Box -->
+      <div class="flex flex-col gap-3">
+        <label class="text-xs font-semibold text-slate-300">相手のルームコードを入力して参加:</label>
+        <div class="flex items-center gap-2">
+          <input 
+            type="text" 
+            id="joinCodeInput" 
+            placeholder="例: A8K92X" 
+            maxlength="10"
+            class="flex-1 uppercase font-mono tracking-wider bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-base text-white placeholder-slate-600 focus:outline-none transition"
+          />
+          <button id="connectPeerBtn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-plug"></i>
+            <span>接続</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Modal 2: Outgoing Call Waiting Modal -->
+  <div id="outgoingCallModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-8 shadow-2xl flex flex-col items-center text-center space-y-6">
+      
+      <div class="relative flex items-center justify-center">
+        <div class="w-24 h-24 rounded-full bg-indigo-500/20 border border-indigo-500/40 absolute pulse-animation"></div>
+        <div class="w-20 h-20 rounded-full bg-indigo-600 flex items-center justify-center text-white text-3xl shadow-xl z-10">
+          <i id="outgoingCallIcon" class="fa-solid fa-phone"></i>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-xl font-bold text-white">通話を呼び出し中...</h3>
+        <p id="outgoingCallType" class="text-xs text-slate-400 mt-1">相手の応答を待っています</p>
+      </div>
+
+      <button id="cancelCallBtn" class="w-full py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-rose-400 text-sm font-semibold rounded-2xl transition">
+        キャンセル
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Modal 3: Incoming Call Alert Modal -->
+  <div id="incomingCallModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-indigo-500/30 rounded-3xl max-w-sm w-full p-8 shadow-2xl flex flex-col items-center text-center space-y-6 animate-bounce-short">
+      
+      <div class="relative flex items-center justify-center">
+        <div class="w-24 h-24 rounded-full bg-emerald-500/20 border border-emerald-500/40 absolute pulse-animation"></div>
+        <div class="w-20 h-20 rounded-full bg-emerald-600 flex items-center justify-center text-white text-3xl shadow-xl z-10">
+          <i id="incomingCallIcon" class="fa-solid fa-phone-volume"></i>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="text-xl font-bold text-white">着信中！</h3>
+        <p id="incomingCallType" class="text-xs text-slate-400 mt-1">相手から通話の呼び出しがあります</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 w-full">
+        <button id="rejectCallBtn" class="py-3 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 text-sm font-semibold rounded-2xl transition">
+          拒否
+        </button>
+        <button id="acceptCallBtn" class="py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-2xl transition shadow-lg shadow-emerald-600/30">
+          受話（通話開始）
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed top-4 right-4 bg-slate-800 border border-slate-700 text-slate-200 px-4 py-2.5 rounded-xl shadow-2xl text-xs flex items-center gap-2 transform translate-y-[-150%] opacity-0 transition-all duration-300 z-50">
+    <i id="toastIcon" class="fa-solid fa-circle-info text-indigo-400"></i>
+    <span id="toastMsg">通知メッセージ</span>
+  </div>
+
+  <script>
+    /* Web Audio Synthesizer for Calling & Ringing Sounds */
+    class AudioSynthesizer {
+      constructor() {
+        this.ctx = null;
+        this.timer = null;
+      }
+
+      init() {
+        if (!this.ctx) {
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      }
+
+      playRingtone() {
+        this.init();
+        this.stop();
+        let toggle = false;
+        this.timer = setInterval(() => {
+          if (!this.ctx) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(toggle ? 440 : 480, this.ctx.currentTime);
+          gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.8);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.8);
+          toggle = !toggle;
+        }, 1000);
+      }
+
+      playCallingTone() {
+        this.init();
+        this.stop();
+        this.timer = setInterval(() => {
+          if (!this.ctx) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+          gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 1.2);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 1.2);
+        }, 3000);
+      }
+
+      stop() {
+        if (this.timer) {
+          clearInterval(this.timer);
+          this.timer = null;
+        }
+      }
+    }
+
+    const soundEffect = new AudioSynthesizer();
+
+    // Application Variables
+    let myPeer = null;
+    let myPeerId = '';
+    let dataConnection = null;
+    let activeMediaCall = null;
+    let localStream = null;
+    let activeCallType = null; // 'audio' or 'video'
+    let isAudioMuted = false;
+    let isVideoOff = false;
+
+    // Helper: Generate Random 6-Character Room Code
+    function generateRoomCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    // DOM Elements
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+    const myRoomCodeEl = document.getElementById('myRoomCode');
+    const copyRoomLinkBtn = document.getElementById('copyRoomLinkBtn');
+    const joinCodeInput = document.getElementById('joinCodeInput');
+    const connectPeerBtn = document.getElementById('connectPeerBtn');
+    
+    const setupModal = document.getElementById('setupModal');
+    const openSetupBtn = document.getElementById('openSetupBtn');
+    const closeSetupBtn = document.getElementById('closeSetupBtn');
+
+    // Call Buttons & Views
+    const callTriggerBar = document.getElementById('callTriggerBar');
+    const startAudioCallBtn = document.getElementById('startAudioCallBtn');
+    const startVideoCallBtn = document.getElementById('startVideoCallBtn');
+    
+    const outgoingCallModal = document.getElementById('outgoingCallModal');
+    const outgoingCallType = document.getElementById('outgoingCallType');
+    const outgoingCallIcon = document.getElementById('outgoingCallIcon');
+    const cancelCallBtn = document.getElementById('cancelCallBtn');
+
+    const incomingCallModal = document.getElementById('incomingCallModal');
+    const incomingCallType = document.getElementById('incomingCallType');
+    const incomingCallIcon = document.getElementById('incomingCallIcon');
+    const acceptCallBtn = document.getElementById('acceptCallBtn');
+    const rejectCallBtn = document.getElementById('rejectCallBtn');
+
+    // Video Elements
+    const remoteVideo = document.getElementById('remoteVideo');
+    const localVideo = document.getElementById('localVideo');
+    const localVideoWrapper = document.getElementById('localVideoWrapper');
+    const videoPlaceholder = document.getElementById('videoPlaceholder');
+    const peerDisplayName = document.getElementById('peerDisplayName');
+    const callStatusSubtext = document.getElementById('callStatusSubtext');
+    const activeCallRing = document.getElementById('activeCallRing');
+
+    const inCallControls = document.getElementById('inCallControls');
+    const toggleMicBtn = document.getElementById('toggleMicBtn');
+    const toggleCamBtn = document.getElementById('toggleCamBtn');
+    const hangupCallBtn = document.getElementById('hangupCallBtn');
+
+    // Chat Elements
+    const chatMessages = document.getElementById('chatMessages');
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const sendMsgBtn = document.getElementById('sendMsgBtn');
+    const clearChatBtn = document.getElementById('clearChatBtn');
+
+    function showToast(msg, icon = 'fa-circle-info') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      const toastIcon = document.getElementById('toastIcon');
+      
+      toastMsg.textContent = msg;
+      toastIcon.className = `fa-solid ${icon} text-indigo-400`;
+      
+      toast.classList.remove('translate-y-[-150%]', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-[-150%]', 'opacity-0');
+      }, 3500);
+    }
+
+    function setConnectionStatus(status, peerId = '') {
+      if (status === 'connected') {
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium';
+        statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-emerald-500';
+        statusText.textContent = `接続中 (${peerId})`;
+        
+        peerDisplayName.textContent = `接続中の相手: ${peerId}`;
+        callStatusSubtext.textContent = '「通話を呼び出す」を押して通話を開始できます';
+
+        chatInput.disabled = false;
+        sendMsgBtn.disabled = false;
+        callTriggerBar.classList.remove('opacity-40', 'pointer-events-none');
+        setupModal.classList.add('hidden');
+      } else if (status === 'connecting') {
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-medium';
+        statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+        statusText.textContent = '接続試行中...';
+      } else {
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-700 border border-slate-600 text-slate-300 text-xs font-medium';
+        statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-slate-400';
+        statusText.textContent = '未接続';
+
+        peerDisplayName.textContent = '通話相手: 未接続';
+        callStatusSubtext.textContent = '「ルーム接続」ボタンから6桁のコードで相手と繋がります';
+
+        chatInput.disabled = true;
+        sendMsgBtn.disabled = true;
+        callTriggerBar.classList.add('opacity-40', 'pointer-events-none');
+      }
+    }
+
+    function initPeerJS() {
+      myPeerId = generateRoomCode();
+      myRoomCodeEl.textContent = myPeerId;
+
+      // Initialize PeerJS client targeting public relay server
+      myPeer = new Peer(myPeerId);
+
+      myPeer.on('open', (id) => {
+        console.log('PeerJS ID ready:', id);
+        // Check URL hash for automatic join code
+        const urlHash = window.location.hash.replace('#', '').toUpperCase();
+        if (urlHash && urlHash !== id && urlHash.length >= 5) {
+          joinCodeInput.value = urlHash;
+          connectToPeer(urlHash);
+        }
+      });
+
+      // Incoming Data Connection Listener
+      myPeer.on('connection', (conn) => {
+        setupDataConnection(conn);
+      });
+
+      // Incoming Media Call Listener (When accepted)
+      myPeer.on('call', (mediaCall) => {
+        activeMediaCall = mediaCall;
+
+        mediaCall.on('stream', (remoteStream) => {
+          remoteVideo.srcObject = remoteStream;
+          if (remoteStream.getVideoTracks().length > 0) {
+            remoteVideo.classList.remove('hidden');
+            videoPlaceholder.classList.add('hidden');
+          } else {
+            activeCallRing.classList.remove('hidden');
+          }
+        });
+
+        mediaCall.on('close', () => {
+          endCallSession(false);
+        });
+      });
+
+      myPeer.on('error', (err) => {
+        console.error('PeerJS Error:', err);
+        showToast('接続エラーが発生しました', 'fa-triangle-exclamation');
+        setConnectionStatus('disconnected');
+      });
+    }
+
+    function setupDataConnection(conn) {
+      dataConnection = conn;
+
+      dataConnection.on('open', () => {
+        setConnectionStatus('connected', dataConnection.peer);
+        showToast(`ルーム ${dataConnection.peer} に接続しました！`, 'fa-circle-check');
+      });
+
+      dataConnection.on('data', (data) => {
+        handleDataMessage(data);
+      });
+
+      dataConnection.on('close', () => {
+        showToast('相手との接続が切断されました', 'fa-plug-circle-xmark');
+        setConnectionStatus('disconnected');
+      });
+    }
+
+    function connectToPeer(targetId) {
+      if (!targetId) {
+        showToast('コードを入力してください', 'fa-triangle-exclamation');
+        return;
+      }
+      setConnectionStatus('connecting');
+      const conn = myPeer.connect(targetId);
+      setupDataConnection(conn);
+    }
+
+    connectPeerBtn.addEventListener('click', () => {
+      const code = joinCodeInput.value.trim().toUpperCase();
+      connectToPeer(code);
+    });
+
+    copyRoomLinkBtn.addEventListener('click', () => {
+      document.execCommand('copy');
+      navigator.clipboard.writeText(myPeerId).catch(() => {});
+      showToast(`コード (${myPeerId}) をコピーしました！`, 'fa-copy');
+    });
+
+    function sendSignal(type, payload = {}) {
+      if (dataConnection && dataConnection.open) {
+        dataConnection.send({ type, ...payload });
+      }
+    }
+
+    function handleDataMessage(data) {
+      switch (data.type) {
+        case 'CHAT_MSG':
+          appendChatMessage('Peer', data.content, data.time, false);
+          break;
+
+        case 'CALL_INVITE': // Incoming Call Prompt
+          activeCallType = data.isVideo ? 'video' : 'audio';
+          incomingCallType.textContent = data.isVideo ? 'ビデオ通話の着信です' : '音声通話の着信です';
+          incomingCallIcon.className = data.isVideo ? 'fa-solid fa-video' : 'fa-solid fa-phone-volume';
+          incomingCallModal.classList.remove('hidden');
+          soundEffect.playRingtone();
+          break;
+
+        case 'CALL_CANCEL':
+          soundEffect.stop();
+          incomingCallModal.classList.add('hidden');
+          showToast('通話呼び出しがキャンセルされました');
+          break;
+
+        case 'CALL_REJECT':
+          soundEffect.stop();
+          outgoingCallModal.classList.add('hidden');
+          showToast('相手が通話を拒否しました', 'fa-phone-slash');
+          break;
+
+        case 'CALL_ACCEPT':
+          soundEffect.stop();
+          outgoingCallModal.classList.add('hidden');
+          startOutgoingCallStream();
+          break;
+
+        case 'HANGUP':
+          endCallSession(false);
+          showToast('通話が終了しました');
+          break;
+      }
+    }
+
+    function initiateCall(isVideo) {
+      if (!dataConnection || !dataConnection.open) {
+        showToast('相手と接続されていません', 'fa-triangle-exclamation');
+        return;
+      }
+
+      activeCallType = isVideo ? 'video' : 'audio';
+      outgoingCallType.textContent = isVideo ? 'ビデオ通話の相手の応答を待っています...' : '音声通話の相手の応答を待っています...';
+      outgoingCallIcon.className = isVideo ? 'fa-solid fa-video' : 'fa-solid fa-phone';
+      outgoingCallModal.classList.remove('hidden');
+
+      soundEffect.playCallingTone();
+      sendSignal('CALL_INVITE', { isVideo });
+    }
+
+    startAudioCallBtn.addEventListener('click', () => initiateCall(false));
+    startVideoCallBtn.addEventListener('click', () => initiateCall(true));
+
+    cancelCallBtn.addEventListener('click', () => {
+      soundEffect.stop();
+      outgoingCallModal.classList.add('hidden');
+      sendSignal('CALL_CANCEL');
+    });
+
+    rejectCallBtn.addEventListener('click', () => {
+      soundEffect.stop();
+      incomingCallModal.classList.add('hidden');
+      sendSignal('CALL_REJECT');
+    });
+
+    acceptCallBtn.addEventListener('click', () => {
+      soundEffect.stop();
+      incomingCallModal.classList.add('hidden');
+      sendSignal('CALL_ACCEPT');
+      startIncomingCallStream();
+    });
+
+    async function startOutgoingCallStream() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: activeCallType === 'video'
+        });
+
+        if (activeCallType === 'video') {
+          localVideo.srcObject = localStream;
+          localVideoWrapper.classList.remove('hidden');
+        }
+
+        inCallControls.classList.remove('hidden');
+        callTriggerBar.classList.add('hidden');
+
+        // Call the connected remote peer
+        activeMediaCall = myPeer.call(dataConnection.peer, localStream);
+
+        activeMediaCall.on('stream', (remoteStream) => {
+          remoteVideo.srcObject = remoteStream;
+          if (remoteStream.getVideoTracks().length > 0) {
+            remoteVideo.classList.remove('hidden');
+            videoPlaceholder.classList.add('hidden');
+          } else {
+            activeCallRing.classList.remove('hidden');
+          }
+        });
+
+        showToast('通話が開始されました！', 'fa-phone');
+      } catch (err) {
+        console.error('Media stream error:', err);
+        showToast('マイク/カメラの取得に失敗しました', 'fa-triangle-exclamation');
+        endCallSession(true);
+      }
+    }
+
+    async function startIncomingCallStream() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: activeCallType === 'video'
+        });
+
+        if (activeCallType === 'video') {
+          localVideo.srcObject = localStream;
+          localVideoWrapper.classList.remove('hidden');
+        }
+
+        inCallControls.classList.remove('hidden');
+        callTriggerBar.classList.add('hidden');
+
+        // Answer pending media call
+        if (activeMediaCall) {
+          activeMediaCall.answer(localStream);
+        }
+
+        showToast('通話が開始されました！', 'fa-phone');
+      } catch (err) {
+        console.error('Media stream error:', err);
+        showToast('マイク/カメラの取得に失敗しました', 'fa-triangle-exclamation');
+        endCallSession(true);
+      }
+    }
+
+    function endCallSession(notifyRemote = true) {
+      if (notifyRemote) {
+        sendSignal('HANGUP');
+      }
+
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+
+      if (activeMediaCall) {
+        activeMediaCall.close();
+        activeMediaCall = null;
+      }
+
+      remoteVideo.srcObject = null;
+      localVideo.srcObject = null;
+      remoteVideo.classList.add('hidden');
+      localVideoWrapper.classList.add('hidden');
+      videoPlaceholder.classList.remove('hidden');
+      activeCallRing.classList.add('hidden');
+      inCallControls.classList.add('hidden');
+      callTriggerBar.classList.remove('hidden');
+
+      soundEffect.stop();
+      outgoingCallModal.classList.add('hidden');
+      incomingCallModal.classList.add('hidden');
+    }
+
+    hangupCallBtn.addEventListener('click', () => {
+      endCallSession(true);
+      showToast('通話を終了しました');
+    });
+
+    toggleMicBtn.addEventListener('click', () => {
+      if (localStream && localStream.getAudioTracks().length > 0) {
+        isAudioMuted = !isAudioMuted;
+        localStream.getAudioTracks()[0].enabled = !isAudioMuted;
+        toggleMicBtn.className = isAudioMuted
+          ? 'w-11 h-11 rounded-full bg-rose-600 text-white flex items-center justify-center transition shadow'
+          : 'w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700 shadow';
+        toggleMicBtn.innerHTML = isAudioMuted 
+          ? '<i class="fa-solid fa-microphone-slash"></i>' 
+          : '<i class="fa-solid fa-microphone"></i>';
+      }
+    });
+
+    toggleCamBtn.addEventListener('click', () => {
+      if (localStream && localStream.getVideoTracks().length > 0) {
+        isVideoOff = !isVideoOff;
+        localStream.getVideoTracks()[0].enabled = !isVideoOff;
+        toggleCamBtn.className = isVideoOff
+          ? 'w-11 h-11 rounded-full bg-rose-600 text-white flex items-center justify-center transition shadow'
+          : 'w-11 h-11 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700 shadow';
+        toggleCamBtn.innerHTML = isVideoOff 
+          ? '<i class="fa-solid fa-video-slash"></i>' 
+          : '<i class="fa-solid fa-video"></i>';
+      }
+    });
+
+    function formatTime() {
+      const now = new Date();
+      return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function appendChatMessage(sender, text, time, isSelf) {
+      const msgWrap = document.createElement('div');
+      msgWrap.className = `flex flex-col ${isSelf ? 'items-end' : 'items-start'} my-1`;
+
+      const msgBubble = document.createElement('div');
+      msgBubble.className = isSelf 
+        ? 'bg-indigo-600 text-white px-3.5 py-2 rounded-2xl rounded-tr-none max-w-[85%] break-words shadow-sm'
+        : 'bg-slate-700 text-slate-100 px-3.5 py-2 rounded-2xl rounded-tl-none max-w-[85%] break-words shadow-sm';
+      msgBubble.textContent = text;
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'text-[10px] text-slate-500 mt-1 px-1';
+      timeSpan.textContent = time;
+
+      msgWrap.appendChild(msgBubble);
+      msgWrap.appendChild(timeSpan);
+      chatMessages.appendChild(msgWrap);
+
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const content = chatInput.value.trim();
+      if (!content) return;
+
+      const time = formatTime();
+      appendChatMessage('Me', content, time, true);
+      sendSignal('CHAT_MSG', { content, time });
+
+      chatInput.value = '';
+    });
+
+    clearChatBtn.addEventListener('click', () => {
+      chatMessages.innerHTML = `
+        <div class="text-center text-xs text-slate-500 my-auto py-4">
+          チャット履歴を消去しました
+        </div>
+      `;
+    });
+
+    openSetupBtn.addEventListener('click', () => setupModal.classList.remove('hidden'));
+    closeSetupBtn.addEventListener('click', () => setupModal.classList.add('hidden'));
+
+    // Initialize application on page load
+    window.onload = () => {
+      initPeerJS();
+    };
+  </script>
+</body>
+</html>
