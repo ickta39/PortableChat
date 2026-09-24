@@ -154,10 +154,10 @@
 
         <!-- In-Call Control Toolbar -->
         <div id="inCallControls" class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-white/90 dark:bg-zinc-900/90 border border-slate-300 dark:border-zinc-700 px-4 py-2 rounded-full shadow-xl hidden backdrop-blur">
-          <button id="toggleMicBtn" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700" title="マイク ON/OFF">
+          <button id="toggleMicBtn" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm" title="マイク ON/OFF">
             <i class="fa-solid fa-microphone text-sm"></i>
           </button>
-          <button id="toggleCamBtn" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700" title="カメラ ON/OFF">
+          <button id="toggleCamBtn" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm" title="カメラ ON/OFF">
             <i class="fa-solid fa-video text-sm"></i>
           </button>
           <button id="hangupBtn" class="w-10 h-10 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition shadow" title="通話を終了">
@@ -705,6 +705,9 @@
           localVideoWrapper.classList.remove('hidden');
         }
 
+        updateMicButtonUI();
+        updateCamButtonUI();
+
         inCallControls.classList.remove('hidden');
         callTriggerBar.classList.add('hidden');
 
@@ -750,6 +753,9 @@
           localVideo.play().catch(() => {});
           localVideoWrapper.classList.remove('hidden');
         }
+
+        updateMicButtonUI();
+        updateCamButtonUI();
 
         inCallControls.classList.remove('hidden');
         callTriggerBar.classList.add('hidden');
@@ -803,13 +809,11 @@
         mediaCall = null;
       }
 
-      // マイク・カメラの制御状態とUIアイコンのリセット
+      // マイク・カメラの制御状態とUIアイコンの完全リセット（白＝ON状態に戻す）
       isMicMuted = false;
       isCamOff = false;
-      toggleMicBtn.className = 'w-10 h-10 rounded-full bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700';
-      toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone text-sm"></i>';
-      toggleCamBtn.className = 'w-10 h-10 rounded-full bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700';
-      toggleCamBtn.innerHTML = '<i class="fa-solid fa-video text-sm"></i>';
+      updateMicButtonUI();
+      updateCamButtonUI();
 
       remoteVideo.classList.add('hidden');
       localVideoWrapper.classList.add('hidden');
@@ -828,16 +832,36 @@
       showToast('通話を終了しました');
     });
 
+    // マイク・カメラのUI更新用ヘルパー関数（白＝ON、赤＝OFFを徹底）
+    function updateMicButtonUI() {
+      if (isMicMuted) {
+        // OFF: 赤ベース
+        toggleMicBtn.className = 'w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center transition border border-red-600 shadow-md';
+        toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone-slash text-sm"></i>';
+      } else {
+        // ON: 白ベース
+        toggleMicBtn.className = 'w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm hover:bg-slate-50 dark:hover:bg-zinc-700';
+        toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone text-sm"></i>';
+      }
+    }
+
+    function updateCamButtonUI() {
+      if (isCamOff) {
+        // OFF: 赤ベース
+        toggleCamBtn.className = 'w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center transition border border-red-600 shadow-md';
+        toggleCamBtn.innerHTML = '<i class="fa-solid fa-video-slash text-sm"></i>';
+      } else {
+        // ON: 白ベース
+        toggleCamBtn.className = 'w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm hover:bg-slate-50 dark:hover:bg-zinc-700';
+        toggleCamBtn.innerHTML = '<i class="fa-solid fa-video text-sm"></i>';
+      }
+    }
+
     toggleMicBtn.addEventListener('click', () => {
       if (localStream && localStream.getAudioTracks().length > 0) {
         isMicMuted = !isMicMuted;
         localStream.getAudioTracks()[0].enabled = !isMicMuted;
-        toggleMicBtn.className = isMicMuted
-          ? 'w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center transition shadow'
-          : 'w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700';
-        toggleMicBtn.innerHTML = isMicMuted 
-          ? '<i class="fa-solid fa-microphone-slash"></i>' 
-          : '<i class="fa-solid fa-microphone"></i>';
+        updateMicButtonUI();
       }
     });
 
@@ -845,12 +869,7 @@
       if (localStream && localStream.getVideoTracks().length > 0) {
         isCamOff = !isCamOff;
         localStream.getVideoTracks()[0].enabled = !isCamOff;
-        toggleCamBtn.className = isCamOff
-          ? 'w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center transition shadow'
-          : 'w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700';
-        toggleCamBtn.innerHTML = isCamOff 
-          ? '<i class="fa-solid fa-video-slash"></i>' 
-          : '<i class="fa-solid fa-video"></i>';
+        updateCamButtonUI();
       }
     });
 
