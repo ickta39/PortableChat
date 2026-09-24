@@ -739,6 +739,249 @@
       `;
     });
 
+    // Signal Sender Helper
+    function sendSignal(type, payload = {}) {
+      if (dataConn && dataConn.open) {
+        dataConn.send({ type, ...payload });
+      }
+    }
+
+    // Toast Notification Helper
+    function showToast(msg, iconClass = 'fa-circle-info') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      const toastIcon = document.getElementById('toastIcon');
+      if (!toast) return;
+      toastMsg.textContent = msg;
+      toastIcon.className = `fa-solid ${iconClass} text-blue-400`;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+
+    // Connection Status UI Handler
+    function setConnectionStatus(state, label) {
+      const chatInput = document.getElementById('chatInput');
+      const sendMsgBtn = document.getElementById('sendMsgBtn');
+
+      statusText.textContent = label;
+
+      if (state === 'connected') {
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium';
+        statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-emerald-500';
+        disconnectBtn.classList.remove('hidden');
+        callTriggerBar.classList.remove('opacity-50', 'pointer-events-none');
+        chatInput.disabled = false;
+        sendMsgBtn.disabled = false;
+      } else if (state === 'ready') {
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-medium';
+        statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-blue-500';
+        disconnectBtn.classList.add('hidden');
+        callTriggerBar.classList.add('opacity-50', 'pointer-events-none');
+        chatInput.disabled = true;
+        sendMsgBtn.disabled = true;
+      } else {
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-medium';
+        statusBadge.querySelector('span').className = 'w-2 h-2 rounded-full bg-slate-400';
+        disconnectBtn.classList.add('hidden');
+        callTriggerBar.classList.add('opacity-50', 'pointer-events-none');
+        chatInput.disabled = true;
+        sendMsgBtn.disabled = true;
+      }
+    }
+
+    // Setup Data Connection Listeners
+    function setupDataConnection(conn) {
+      dataConn = conn;
+
+      dataConn.on('open', () => {
+        setConnectionStatus('connected', '接続中');
+        peerDisplayName.textContent = `接続相手: ${dataConn.peer}`;
+        callStatusSubtext.textContent = '音声またはビデオ通話、チャットを開始できます';
+        showToast('相手と接続されました！', 'fa-link');
+      });
+
+      dataConn.on('data', (data) => {
+        if (data.type === 'CHAT_MSG') {
+          appendChatMessage('相手', data.content, data.time, false);
+        } else if (data.type === 'CALL_REQUEST') {
+          activeCallType = data.callType;
+          document.getElementById('incomingCallType').textContent =
+            data.callType === 'video' ? 'ビデオ通話の着信中...' : '音声通話の着信中...';
+          document.getElementById('incomingCallIcon').className =
+            data.callType === 'video' ? 'fa-solid fa-video' : 'fa-solid fa-phone-volume';
+          incomingCallModal.classList.remove('hidden');
+          soundEffect.startIncomingRingtone();
+        } else if (data.type === 'ACCEPT_CALL') {
+          soundEffect.stop();
+          outgoingCallModal.classList.add('hidden');
+          startOutgoingCallStream();
+        } else if (data.type === 'REJECT_CALL') {
+          soundEffect.stop();
+          outgoingCallModal.classList.add('hidden');
+          showToast('通話が拒否されました', 'fa-phone-slash');
+        } else if (data.type === 'HANGUP') {
+          endCallSession(false);
+          showToast('通話が終了しました', 'fa-phone-slash');
+        }
+      });
+
+      dataConn.on('close', () => {
+        endCallSession(false);
+        dataConn = null;
+        setConnectionStatus('ready', '待機中');
+        peerDisplayName.textContent = '接続相手: 未接続';
+        callStatusSubtext.textContent = '上部バーから相手のコードを入力して接続してください';
+        showToast('接続が切断されました', 'fa-plug-circle-xmark');
+      });
+
+      dataConn.on('error', (err) => {
+        console.error('Data Connection Error:', err);
+        showToast('通信エラーが発生しました', 'fa-triangle-exclamation');
+      });
+    }
+
+    // Initialize PeerJS Instance
+    function initPeerJS() {
+      myPeerId = generateRoomCode();
+      myRoomCodeEl.textContent = myPeerId;
+
+      try {
+        peer = new Peer(myPeerId, { debug: 1 });
+      } catch(e) {
+        console.error('Peer instantiation error:', e);
+        showToast('PeerJSの初期化に失敗しました', 'fa-triangle-exclamation');
+        return;
+      }
+
+      peer.on('open', (id) => {
+        myPeerId = id;
+        myRoomCodeEl.textContent = id;
+        setConnectionStatus('ready', '待機中');
+      });
+
+      peer.on('connection', (conn) => {
+        if (dataConn) {
+          conn.close();
+          return;
+        }
+        setupDataConnection(conn);
+      });
+
+      peer.on('call', (call) => {
+        mediaCall = call;
+        mediaCall.on('stream', (remoteStream) => {
+          remoteVideo.srcObject = remoteStream;
+          remoteVideo.play().catch(() => {});
+          if (remoteStream.getVideoTracks().length > 0) {
+            remoteVideo.classList.remove('hidden');
+            videoPlaceholder.classList.add('hidden');
+          } else {
+            activeCallRing.classList.remove('hidden');
+          }
+        });
+
+        mediaCall.on('close', () => {
+          endCallSession(false);
+        });
+
+        mediaCall.on('error', (err) => {
+          console.error('Media Call Error:', err);
+          endCallSession(false);
+        });
+      });
+
+      peer.on('error', (err) => {
+        console.error('PeerJS Error:', err);
+        if (err.type === 'peer-unavailable') {
+          showToast('入力されたコードの相手が見つかりません', 'fa-triangle-exclamation');
+        } else {
+          showToast('接続エラーが発生しました', 'fa-triangle-exclamation');
+        }
+      });
+    }
+
+    // Event Listeners for Actions
+    copyCodeBtn.addEventListener('click', () => {
+      if (!myPeerId || myPeerId === '------') return;
+      const tempInput = document.createElement('input');
+      tempInput.value = myPeerId;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      showToast('コードをコピーしました！', 'fa-check');
+    });
+
+    connectBtn.addEventListener('click', () => {
+      const targetCode = targetCodeInput.value.trim().toUpperCase();
+      if (!targetCode) {
+        showToast('相手のコードを入力してください', 'fa-triangle-exclamation');
+        return;
+      }
+      if (targetCode === myPeerId) {
+        showToast('自分のコードには接続できません', 'fa-triangle-exclamation');
+        return;
+      }
+      if (!peer) return;
+
+      const conn = peer.connect(targetCode, { reliable: true });
+      setupDataConnection(conn);
+    });
+
+    disconnectBtn.addEventListener('click', () => {
+      endCallSession(true);
+      if (dataConn) {
+        dataConn.close();
+        dataConn = null;
+      }
+      setConnectionStatus('ready', '待機中');
+      peerDisplayName.textContent = '接続相手: 未接続';
+      callStatusSubtext.textContent = '上部バーから相手のコードを入力して接続してください';
+      showToast('切断しました', 'fa-plug-circle-xmark');
+    });
+
+    // Call Actions
+    startAudioCallBtn.addEventListener('click', () => {
+      if (!dataConn || !dataConn.open) return;
+      activeCallType = 'audio';
+      document.getElementById('outgoingCallType').textContent = '音声通話を呼び出し中...';
+      document.getElementById('outgoingCallIcon').className = 'fa-solid fa-phone';
+      outgoingCallModal.classList.remove('hidden');
+      soundEffect.startOutgoingCallingTone();
+      sendSignal('CALL_REQUEST', { callType: 'audio' });
+    });
+
+    startVideoCallBtn.addEventListener('click', () => {
+      if (!dataConn || !dataConn.open) return;
+      activeCallType = 'video';
+      document.getElementById('outgoingCallType').textContent = 'ビデオ通話を呼び出し中...';
+      document.getElementById('outgoingCallIcon').className = 'fa-solid fa-video';
+      outgoingCallModal.classList.remove('hidden');
+      soundEffect.startOutgoingCallingTone();
+      sendSignal('CALL_REQUEST', { callType: 'video' });
+    });
+
+    document.getElementById('cancelCallBtn').addEventListener('click', () => {
+      soundEffect.stop();
+      outgoingCallModal.classList.add('hidden');
+      sendSignal('HANGUP');
+    });
+
+    document.getElementById('acceptCallBtn').addEventListener('click', () => {
+      soundEffect.stop();
+      incomingCallModal.classList.add('hidden');
+      sendSignal('ACCEPT_CALL');
+      startIncomingCallStream();
+    });
+
+    document.getElementById('rejectCallBtn').addEventListener('click', () => {
+      soundEffect.stop();
+      incomingCallModal.classList.add('hidden');
+      sendSignal('REJECT_CALL');
+    });
+
     // Initialize application
     window.onload = () => {
       initPeerJS();
