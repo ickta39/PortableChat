@@ -533,6 +533,7 @@
 
         mediaCall.on('stream', (remoteStream) => {
           remoteVideo.srcObject = remoteStream;
+          remoteVideo.play().catch(() => {});
           if (remoteStream.getVideoTracks().length > 0) {
             remoteVideo.classList.remove('hidden');
             videoPlaceholder.classList.add('hidden');
@@ -542,6 +543,11 @@
         });
 
         mediaCall.on('close', () => {
+          endCallSession(false);
+        });
+
+        mediaCall.on('error', (err) => {
+          console.error('MediaCall Error:', err);
           endCallSession(false);
         });
       });
@@ -695,6 +701,7 @@
 
         if (activeCallType === 'video') {
           localVideo.srcObject = localStream;
+          localVideo.play().catch(() => {});
           localVideoWrapper.classList.remove('hidden');
         }
 
@@ -705,12 +712,22 @@
 
         mediaCall.on('stream', (remoteStream) => {
           remoteVideo.srcObject = remoteStream;
+          remoteVideo.play().catch(() => {});
           if (remoteStream.getVideoTracks().length > 0) {
             remoteVideo.classList.remove('hidden');
             videoPlaceholder.classList.add('hidden');
           } else {
             activeCallRing.classList.remove('hidden');
           }
+        });
+
+        mediaCall.on('close', () => {
+          endCallSession(false);
+        });
+
+        mediaCall.on('error', (err) => {
+          console.error('MediaCall Error:', err);
+          endCallSession(false);
         });
 
         showToast('通話を開始しました', 'fa-phone');
@@ -730,14 +747,28 @@
 
         if (activeCallType === 'video') {
           localVideo.srcObject = localStream;
+          localVideo.play().catch(() => {});
           localVideoWrapper.classList.remove('hidden');
         }
 
         inCallControls.classList.remove('hidden');
         callTriggerBar.classList.add('hidden');
 
+        // MediaConnection（WebRTCオファー）の到着を最大3秒非同期待機
+        if (!mediaCall) {
+          let checkCount = 0;
+          while (!mediaCall && checkCount < 30) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            checkCount++;
+          }
+        }
+
         if (mediaCall) {
           mediaCall.answer(localStream);
+        } else {
+          showToast('通話接続に失敗しました', 'fa-triangle-exclamation');
+          endCallSession(true);
+          return;
         }
 
         showToast('通話を開始しました', 'fa-phone');
@@ -758,13 +789,28 @@
         localStream = null;
       }
 
+      if (remoteVideo.srcObject) {
+        const tracks = remoteVideo.srcObject.getTracks ? remoteVideo.srcObject.getTracks() : [];
+        tracks.forEach(t => t.stop());
+        remoteVideo.srcObject = null;
+      }
+      if (localVideo.srcObject) {
+        localVideo.srcObject = null;
+      }
+
       if (mediaCall) {
         mediaCall.close();
         mediaCall = null;
       }
 
-      remoteVideo.srcObject = null;
-      localVideo.srcObject = null;
+      // マイク・カメラの制御状態とUIアイコンのリセット
+      isMicMuted = false;
+      isCamOff = false;
+      toggleMicBtn.className = 'w-10 h-10 rounded-full bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700';
+      toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone text-sm"></i>';
+      toggleCamBtn.className = 'w-10 h-10 rounded-full bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700';
+      toggleCamBtn.innerHTML = '<i class="fa-solid fa-video text-sm"></i>';
+
       remoteVideo.classList.add('hidden');
       localVideoWrapper.classList.add('hidden');
       videoPlaceholder.classList.remove('hidden');
