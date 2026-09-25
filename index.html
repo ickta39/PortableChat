@@ -81,6 +81,11 @@
         <span id="statusText">未接続</span>
       </div>
 
+      <!-- STUN/TURN Settings Button -->
+      <button id="turnSettingsBtn" class="p-2 rounded-lg text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition text-sm" title="STUN/TURN サーバー設定">
+        <i class="fa-solid fa-gear"></i>
+      </button>
+
       <!-- Theme Switch Button -->
       <button id="themeToggleBtn" class="p-2 rounded-lg text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition text-sm" title="テーマ切り替え">
         <i class="fa-solid fa-moon dark:hidden"></i>
@@ -281,6 +286,43 @@
     </div>
   </div>
 
+  <!-- STUN / TURN Server Config Modal -->
+  <div id="turnModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-200 dark:border-zinc-700 pb-3">
+        <h3 class="font-bold text-sm md:text-base flex items-center gap-2">
+          <i class="fa-solid fa-network-wired text-blue-500"></i>
+          WebRTC / ICE 設定 (STUN/TURN)
+        </h3>
+        <button id="closeTurnModalBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="text-xs text-slate-600 dark:text-zinc-300 space-y-2">
+        <p>異ネットワーク間やファイアウォール（Symmetric NAT）環境でICE接続失敗エラーが発生する場合、TURNサーバーを設定してください。</p>
+        
+        <div>
+          <label class="block font-semibold mb-1">STUN / TURN サーバー配列 (JSON形式):</label>
+          <textarea id="turnConfigInput" rows="6" class="w-full font-mono text-[11px] p-2 bg-slate-100 dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:border-blue-500 transition"></textarea>
+        </div>
+        
+        <p class="text-[11px] text-slate-400 dark:text-zinc-400">
+          ※ Metered.ca や Twilio、自作Coturn等の TURN 設定オブジェクト（<code>[{"urls":"turn:...","username":"...","credential":"..."}]</code>）を入力保存できます。
+        </p>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-700">
+        <button id="resetTurnBtn" class="px-3 py-1.5 bg-slate-200 dark:bg-zinc-700 hover:bg-slate-300 dark:hover:bg-zinc-600 text-xs font-semibold rounded-lg transition">
+          初期状態（多重STUN）に戻す
+        </button>
+        <button id="saveTurnBtn" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition">
+          保存して接続再初期化
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast" class="fixed bottom-4 left-4 bg-slate-800 text-white px-3 py-2 rounded-lg shadow-lg text-xs flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
     <i id="toastIcon" class="fa-solid fa-circle-info text-blue-400"></i>
@@ -378,6 +420,29 @@
 
     const soundEffect = new ToneSynthesizer();
 
+    // Default robust ICE / STUN Servers configuration
+    const defaultIceServers = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' }
+    ];
+
+    function getIceServers() {
+      const saved = localStorage.getItem('ict_custom_turn_config');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch(e) {
+          console.warn('Failed to parse custom TURN config', e);
+        }
+      }
+      return defaultIceServers;
+    }
+
     // Global Application State
     let peer = null;
     let myPeerId = '';
@@ -387,7 +452,44 @@
     let activeCallType = null; // 'audio' or 'video'
     let isMicMuted = false;
     let isCamOff = false;
-    let currentFacingMode = 'user'; // 'user' (インカメラ) or 'environment' (アウトカメラ)
+    let currentFacingMode = 'user'; // 'user' or 'environment'
+
+    // DOM References for TURN Modal
+    const turnSettingsBtn = document.getElementById('turnSettingsBtn');
+    const turnModal = document.getElementById('turnModal');
+    const closeTurnModalBtn = document.getElementById('closeTurnModalBtn');
+    const turnConfigInput = document.getElementById('turnConfigInput');
+    const saveTurnBtn = document.getElementById('saveTurnBtn');
+    const resetTurnBtn = document.getElementById('resetTurnBtn');
+
+    turnSettingsBtn.addEventListener('click', () => {
+      turnConfigInput.value = JSON.stringify(getIceServers(), null, 2);
+      turnModal.classList.remove('hidden');
+    });
+
+    closeTurnModalBtn.addEventListener('click', () => {
+      turnModal.classList.add('hidden');
+    });
+
+    resetTurnBtn.addEventListener('click', () => {
+      localStorage.removeItem('ict_custom_turn_config');
+      turnConfigInput.value = JSON.stringify(defaultIceServers, null, 2);
+      showToast('デフォルト設定に復元しました', 'fa-rotate-left');
+    });
+
+    saveTurnBtn.addEventListener('click', () => {
+      try {
+        const parsed = JSON.parse(turnConfigInput.value);
+        if (!Array.isArray(parsed)) throw new Error('配列である必要があります');
+        localStorage.setItem('ict_custom_turn_config', JSON.stringify(parsed));
+        turnModal.classList.add('hidden');
+        showToast('設定を保存しました。再接続します', 'fa-floppy-disk');
+        if (peer) peer.destroy();
+        initPeerJS();
+      } catch(err) {
+        showToast('JSON形式が正しくありません: ' + err.message, 'fa-triangle-exclamation');
+      }
+    });
 
     // Generate random 6-character clean room code
     function generateRoomCode() {
@@ -795,6 +897,15 @@
     function setupDataConnection(conn) {
       dataConn = conn;
 
+      if (dataConn.peerConnection) {
+        dataConn.peerConnection.oniceconnectionstatechange = () => {
+          const state = dataConn.peerConnection.iceConnectionState;
+          if (state === 'failed') {
+            showToast('ICE接続失敗: ファイアウォール制限があります。TURNサーバー設定をご確認ください。', 'fa-triangle-exclamation');
+          }
+        };
+      }
+
       dataConn.on('open', () => {
         setConnectionStatus('connected', '接続中');
         peerDisplayName.textContent = `接続相手: ${dataConn.peer}`;
@@ -838,7 +949,7 @@
 
       dataConn.on('error', (err) => {
         console.error('Data Connection Error:', err);
-        showToast('通信エラーが発生しました', 'fa-triangle-exclamation');
+        showToast('通信エラー（ICE/NAT確立失敗）が発生しました', 'fa-triangle-exclamation');
       });
     }
 
@@ -848,7 +959,13 @@
       myRoomCodeEl.textContent = myPeerId;
 
       try {
-        peer = new Peer(myPeerId, { debug: 1 });
+        peer = new Peer(myPeerId, {
+          debug: 1,
+          config: {
+            iceServers: getIceServers(),
+            sdpSemantics: 'unified-plan'
+          }
+        });
       } catch(e) {
         console.error('Peer instantiation error:', e);
         showToast('PeerJSの初期化に失敗しました', 'fa-triangle-exclamation');
@@ -896,8 +1013,10 @@
         console.error('PeerJS Error:', err);
         if (err.type === 'peer-unavailable') {
           showToast('入力されたコードの相手が見つかりません', 'fa-triangle-exclamation');
+        } else if (err.message && err.message.includes('Negotiation')) {
+          showToast('接続ネゴシエーションに失敗。STUN/TURN設定を確認してください。', 'fa-triangle-exclamation');
         } else {
-          showToast('接続エラーが発生しました', 'fa-triangle-exclamation');
+          showToast('接続エラーが発生しました: ' + (err.type || 'ICE Failed'), 'fa-triangle-exclamation');
         }
       });
     }
