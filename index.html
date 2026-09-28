@@ -646,6 +646,13 @@
       isMirrored = !isBackCamera;
       updateMirroringUI();
     }
+
+    function generateRoomCode() {
+      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
       return code;
     }
 
@@ -682,15 +689,6 @@
         }
       } catch(e) {
         console.error('Error enumerating devices:', e);
-      }
-    }
-
-    function updateVideoMirroring(label = '') {
-      const isBackCamera = /back|rear|environment|アウト|外/i.test(label);
-      if (isBackCamera) {
-        localVideo.classList.remove('-scale-x-100');
-      } else {
-        localVideo.classList.add('-scale-x-100');
       }
     }
 
