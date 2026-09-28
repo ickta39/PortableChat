@@ -601,8 +601,13 @@
           ? (currentDeviceId ? { deviceId: { exact: currentDeviceId } } : { facingMode: 'user' })
           : false;
 
+        // スライド4要件: ハウリング・鳴音防止のためのエコーキャンセラー・ノイズ除去設定
         localStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          audio: { 
+            echoCancellation: { exact: true }, 
+            noiseSuppression: true, 
+            autoGainControl: true 
+          },
           video: videoConstraints
         });
 
@@ -648,8 +653,13 @@
           ? (currentDeviceId ? { deviceId: { exact: currentDeviceId } } : { facingMode: 'user' })
           : false;
 
+        // スライド4要件: ハウリング・鳴音防止のためのエコーキャンセラー・ノイズ除去設定
         localStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          audio: { 
+            echoCancellation: true, 
+            noiseSuppression: true, 
+            autoGainControl: true 
+          },
           video: videoConstraints
         });
 
@@ -954,19 +964,19 @@
     chatForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const content = chatInput.value.trim();
-      if (!content) return;
-
-      const time = formatTime();
-      appendChatMessage('自分', content, time, true);
-      sendSignal('CHAT_MSG', { content, time });
-
-      chatInput.value = '';
-    });
-
-    clearChatBtn.addEventListener('click', () => {
-      chatMessages.innerHTML = `
-        <div class="text-center text-xs text-slate-400 my-auto py-4">
-          チャット履歴を消去しました
+        <div id="videoPlaceholder" class="flex flex-col items-center justify-center gap-3 p-6 text-center">
+          <div class="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 flex items-center justify-center text-slate-500 dark:text-zinc-400 text-3xl md:text-4xl shadow-sm relative">
+            <i class="fa-solid fa-headset"></i>
+            <div id="activeCallRing" class="absolute inset-0 rounded-full border-2 border-emerald-500/50 pulse-ring hidden"></div>
+          </div>
+          <div>
+            <h2 id="peerDisplayName" class="text-slate-800 dark:text-zinc-200 font-bold text-base md:text-lg">接続相手: 未接続</h2>
+            <p id="callStatusSubtext" class="text-xs text-slate-500 dark:text-zinc-400 mt-1">上部バーから相手のコードを入力して接続してください</p>
+            <p class="text-[11px] text-emerald-600 dark:text-emerald-400 mt-2 font-medium flex items-center justify-center gap-1">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>ハウリング（鳴音）防止・エコーキャンセル機能有効</span>
+            </p>
+          </div>
         </div>
       `;
     });
