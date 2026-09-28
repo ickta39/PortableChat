@@ -341,29 +341,34 @@
         this.stop();
         if (!this.ctx) return;
 
-        const playStep = () => {
+        // Upbeat, happy tropical/marimba-style arpeggio sequence
+        const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50]; // C5, E5, G5, C6
+        let step = 0;
+
+        const playMelodySequence = () => {
           if (!this.ctx) return;
-          const osc1 = this.ctx.createOscillator();
-          const osc2 = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
+          
+          notes.forEach((freq, idx) => {
+            const noteTime = this.ctx.currentTime + (idx * 0.12);
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
 
-          osc1.type = 'sine';
-          osc2.type = 'sine';
-          osc1.frequency.setValueAtTime(400, this.ctx.currentTime);
-          osc2.frequency.setValueAtTime(15, this.ctx.currentTime);
+            osc.type = 'triangle'; // Warm marimba-like tone
+            osc.frequency.setValueAtTime(freq, noteTime);
 
-          gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 1.0);
+            gain.gain.setValueAtTime(0.18, noteTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.25);
 
-          osc1.connect(gain);
-          gain.connect(this.ctx.destination);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
 
-          osc1.start();
-          osc1.stop(this.ctx.currentTime + 1.0);
+            osc.start(noteTime);
+            osc.stop(noteTime + 0.26);
+          });
         };
 
-        playStep();
-        this.timer = setInterval(playStep, 2000);
+        playMelodySequence();
+        this.timer = setInterval(playMelodySequence, 1600);
       }
 
       startOutgoingCallingTone() {
@@ -373,23 +378,27 @@
 
         const playStep = () => {
           if (!this.ctx) return;
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
+          const now = this.ctx.currentTime;
+          
+          [440, 554.37, 659.25].forEach((freq, i) => { // A4 - C#5 - E5 cheerful chord
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.08);
 
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(400, this.ctx.currentTime);
-          gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 1.0);
+            gain.gain.setValueAtTime(0.08, now + i * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.4);
 
-          osc.connect(gain);
-          gain.connect(this.ctx.destination);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
 
-          osc.start();
-          osc.stop(this.ctx.currentTime + 1.0);
+            osc.start(now + i * 0.08);
+            osc.stop(now + i * 0.08 + 0.45);
+          });
         };
 
         playStep();
-        this.timer = setInterval(playStep, 3000);
+        this.timer = setInterval(playStep, 2200);
       }
 
       stop() {
@@ -428,11 +437,26 @@
     let dataConn = null;
     let mediaCall = null;
     let localStream = null;
+    let dummyVideoTrack = null;
     let activeCallType = 'audio';
     let isMicMuted = false;
     let isCamOff = false;
     let availableVideoDevices = [];
     let currentDeviceId = null;
+
+    // Helper to generate a dummy 1x1 black video track for initial audio-only SDP negotiation
+    function createDummyVideoTrack() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 16;
+      canvas.height = 16;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 16, 16);
+      const stream = canvas.captureStream(1);
+      const track = stream.getVideoTracks()[0];
+      track.enabled = false;
+      return track;
+    }
 
     // DOM Elements
     const statusBadge = document.getElementById('statusBadge');
@@ -587,22 +611,23 @@
           video: videoConstraints
         });
 
-        await updateAvailableCameras();
-
-        if (activeCallType === 'video') {
+        if (activeCallType === 'audio') {
+          dummyVideoTrack = createDummyVideoTrack();
+          localStream.addTrack(dummyVideoTrack);
+          isCamOff = true;
+          switchCamBtn.classList.add('hidden');
+          localVideoWrapper.classList.add('hidden');
+        } else {
           isCamOff = false;
+          dummyVideoTrack = null;
           localVideo.srcObject = localStream;
           localVideo.play().catch(() => {});
           localVideoWrapper.classList.remove('hidden');
           const videoTrack = localStream.getVideoTracks()[0];
           if (videoTrack) currentDeviceId = videoTrack.getSettings().deviceId;
-          const devObj = availableVideoDevices.find(d => d.deviceId === currentDeviceId);
-          updateVideoMirroring(devObj ? devObj.label : '');
-        } else {
-          isCamOff = true;
-          switchCamBtn.classList.add('hidden');
-          localVideoWrapper.classList.add('hidden');
         }
+
+        await updateAvailableCameras();
 
         isMicMuted = false;
         updateMicButtonUI();
@@ -633,22 +658,23 @@
           video: videoConstraints
         });
 
-        await updateAvailableCameras();
-
-        if (activeCallType === 'video') {
+        if (activeCallType === 'audio') {
+          dummyVideoTrack = createDummyVideoTrack();
+          localStream.addTrack(dummyVideoTrack);
+          isCamOff = true;
+          switchCamBtn.classList.add('hidden');
+          localVideoWrapper.classList.add('hidden');
+        } else {
           isCamOff = false;
+          dummyVideoTrack = null;
           localVideo.srcObject = localStream;
           localVideo.play().catch(() => {});
           localVideoWrapper.classList.remove('hidden');
           const videoTrack = localStream.getVideoTracks()[0];
           if (videoTrack) currentDeviceId = videoTrack.getSettings().deviceId;
-          const devObj = availableVideoDevices.find(d => d.deviceId === currentDeviceId);
-          updateVideoMirroring(devObj ? devObj.label : '');
-        } else {
-          isCamOff = true;
-          switchCamBtn.classList.add('hidden');
-          localVideoWrapper.classList.add('hidden');
         }
+
+        await updateAvailableCameras();
 
         isMicMuted = false;
         updateMicButtonUI();
@@ -711,26 +737,31 @@
       remoteVideo.srcObject = remoteStream;
       remoteVideo.play().catch(() => {});
 
-      const checkVideoTracks = () => {
-        const vTracks = remoteStream.getVideoTracks();
-        const hasActiveVideo = vTracks.length > 0 && vTracks.some(t => t.enabled);
-        if (hasActiveVideo) {
-          remoteVideo.classList.remove('hidden');
-          videoPlaceholder.classList.add('hidden');
-        } else {
-          remoteVideo.classList.add('hidden');
-          videoPlaceholder.classList.remove('hidden');
-          activeCallRing.classList.remove('hidden');
-        }
-      };
+      checkRemoteVideoDisplay();
 
-      checkVideoTracks();
       remoteStream.onaddtrack = () => {
-        checkVideoTracks();
+        checkRemoteVideoDisplay();
         remoteVideo.play().catch(() => {});
       };
-      remoteStream.onremovetrack = () => { checkVideoTracks(); };
+      remoteStream.onremovetrack = () => { checkRemoteVideoDisplay(); };
     }
+
+    function checkRemoteVideoDisplay() {
+      if (!remoteVideo.srcObject) return;
+      const vTracks = remoteVideo.srcObject.getVideoTracks();
+      const hasActiveVideo = vTracks.length > 0 && vTracks.some(t => t.enabled) && !isRemoteCamOff;
+
+      if (hasActiveVideo) {
+        remoteVideo.classList.remove('hidden');
+        videoPlaceholder.classList.add('hidden');
+      } else {
+        remoteVideo.classList.add('hidden');
+        videoPlaceholder.classList.remove('hidden');
+        activeCallRing.classList.remove('hidden');
+      }
+    }
+
+    let isRemoteCamOff = false;
 
     function updateMicButtonUI() {
       const hasAudioTrack = localStream && localStream.getAudioTracks().length > 0 && localStream.getAudioTracks()[0].enabled;
@@ -765,19 +796,27 @@
     toggleCamBtn.addEventListener('click', async () => {
       if (!localStream) return;
 
-      let videoTrack = localStream.getVideoTracks()[0];
+      let currentVideoTrack = localStream.getVideoTracks()[0];
+      const isDummy = dummyVideoTrack && currentVideoTrack === dummyVideoTrack;
 
-      if (!videoTrack) {
+      if (isCamOff || isDummy) {
+        // Turning camera ON
         try {
           const videoConstraints = currentDeviceId 
             ? { deviceId: { exact: currentDeviceId } } 
             : { facingMode: 'user' };
 
           const cameraStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
-          videoTrack = cameraStream.getVideoTracks()[0];
+          const newRealVideoTrack = cameraStream.getVideoTracks()[0];
 
-          if (videoTrack) {
-            localStream.addTrack(videoTrack);
+          if (newRealVideoTrack) {
+            // Replace existing video/dummy track in localStream
+            if (currentVideoTrack) {
+              localStream.removeTrack(currentVideoTrack);
+              currentVideoTrack.stop();
+            }
+            localStream.addTrack(newRealVideoTrack);
+            dummyVideoTrack = null;
             isCamOff = false;
 
             await updateAvailableCameras();
@@ -786,18 +825,22 @@
             localVideo.play().catch(() => {});
             localVideoWrapper.classList.remove('hidden');
 
-            const devObj = availableVideoDevices.find(d => d.deviceId === videoTrack.getSettings().deviceId);
+            const devObj = availableVideoDevices.find(d => d.deviceId === newRealVideoTrack.getSettings().deviceId);
             updateVideoMirroring(devObj ? devObj.label : '');
 
+            // Swap track in PeerConnection sender to transmit to remote partner instantly
             if (mediaCall && mediaCall.peerConnection) {
               const senders = mediaCall.peerConnection.getSenders();
               const videoSender = senders.find(s => s.track && s.track.kind === 'video');
               if (videoSender) {
-                videoSender.replaceTrack(videoTrack);
+                videoSender.replaceTrack(newRealVideoTrack);
               } else {
-                mediaCall.peerConnection.addTrack(videoTrack, localStream);
+                mediaCall.peerConnection.addTrack(newRealVideoTrack, localStream);
               }
             }
+
+            // Inform remote peer about camera activation
+            sendSignal('CAMERA_STATE', { enabled: true });
 
             updateCamButtonUI();
             showToast('カメラをONにしました', 'fa-video');
@@ -807,18 +850,31 @@
           showToast('カメラの起動に失敗しました', 'fa-triangle-exclamation');
         }
       } else {
-        isCamOff = !isCamOff;
-        videoTrack.enabled = !isCamOff;
+        // Turning camera OFF -> Replace back with dummy track
+        isCamOff = true;
+        const realTrack = localStream.getVideoTracks()[0];
 
-        if (isCamOff) {
-          localVideoWrapper.classList.add('hidden');
-          showToast('カメラをOFFにしました', 'fa-video-slash');
-        } else {
-          localVideoWrapper.classList.remove('hidden');
-          localVideo.play().catch(() => {});
-          showToast('カメラをONにしました', 'fa-video');
+        dummyVideoTrack = createDummyVideoTrack();
+        if (realTrack) {
+          localStream.removeTrack(realTrack);
+          realTrack.stop();
         }
+        localStream.addTrack(dummyVideoTrack);
+
+        if (mediaCall && mediaCall.peerConnection) {
+          const senders = mediaCall.peerConnection.getSenders();
+          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+          if (videoSender) {
+            videoSender.replaceTrack(dummyVideoTrack);
+          }
+        }
+
+        localVideoWrapper.classList.add('hidden');
+        switchCamBtn.classList.add('hidden');
+        sendSignal('CAMERA_STATE', { enabled: false });
+
         updateCamButtonUI();
+        showToast('カメラをOFFにしました', 'fa-video-slash');
       }
     });
 
@@ -830,6 +886,10 @@
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
+      }
+      if (dummyVideoTrack) {
+        dummyVideoTrack.stop();
+        dummyVideoTrack = null;
       }
 
       if (remoteAudio.srcObject) {
@@ -855,6 +915,7 @@
 
       isMicMuted = false;
       isCamOff = false;
+      isRemoteCamOff = false;
       currentDeviceId = null;
       updateMicButtonUI();
       updateCamButtonUI();
@@ -1008,6 +1069,10 @@
           soundEffect.stop();
           outgoingCallModal.classList.add('hidden');
           showToast('通話が拒否されました', 'fa-phone-slash');
+        } else if (data.type === 'CAMERA_STATE') {
+          isRemoteCamOff = !data.enabled;
+          checkRemoteVideoDisplay();
+          showToast(data.enabled ? '相手がカメラをONにしました' : '相手がカメラをOFFにしました', 'fa-video');
         } else if (data.type === 'HANGUP') {
           endCallSession(false);
           showToast('通話が終了しました', 'fa-phone-slash');
