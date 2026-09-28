@@ -156,6 +156,9 @@
           <button id="toggleCamBtn" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm" title="カメラ ON/OFF">
             <i class="fa-solid fa-video text-sm"></i>
           </button>
+          <button id="toggleMirrorBtn" class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm" title="ミラー反転 ON/OFF">
+            <i class="fa-solid fa-right-left text-sm"></i>
+          </button>
           
           <div class="relative">
             <button id="switchCamBtn" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm hidden" title="カメラ切替">
@@ -532,6 +535,7 @@
     let activeCallType = 'audio';
     let isMicMuted = false;
     let isCamOff = false;
+    let isMirrored = true;
     let isRemoteCamOff = false;
     let availableVideoDevices = [];
     let currentDeviceId = null;
@@ -611,6 +615,7 @@
     const inCallControls = document.getElementById('inCallControls');
     const toggleMicBtn = document.getElementById('toggleMicBtn');
     const toggleCamBtn = document.getElementById('toggleCamBtn');
+    const toggleMirrorBtn = document.getElementById('toggleMirrorBtn');
     const switchCamBtn = document.getElementById('switchCamBtn');
     const cameraSelect = document.getElementById('cameraSelect');
     const hangupBtn = document.getElementById('hangupBtn');
@@ -618,28 +623,29 @@
     const callTriggerBar = document.getElementById('callTriggerBar');
     const startAudioCallBtn = document.getElementById('startAudioCallBtn');
     const startVideoCallBtn = document.getElementById('startVideoCallBtn');
-
-    const chatMessages = document.getElementById('chatMessages');
-    const chatForm = document.getElementById('chatForm');
-    const chatInput = document.getElementById('chatInput');
-    const sendMsgBtn = document.getElementById('sendMsgBtn');
-    const clearChatBtn = document.getElementById('clearChatBtn');
-
-    const outgoingCallModal = document.getElementById('outgoingCallModal');
-    const incomingCallModal = document.getElementById('incomingCallModal');
-
-    const turnModal = document.getElementById('turnModal');
-    const closeTurnModalBtn = document.getElementById('closeTurnModalBtn');
-    const turnConfigInput = document.getElementById('turnConfigInput');
-    const resetTurnBtn = document.getElementById('resetTurnBtn');
-    const saveTurnBtn = document.getElementById('saveTurnBtn');
-
-    function generateRoomCode() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let code = '';
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    function updateMirroringUI() {
+      if (isMirrored) {
+        localVideo.classList.add('-scale-x-100');
+        toggleMirrorBtn.classList.add('bg-blue-600', 'text-white');
+        toggleMirrorBtn.classList.remove('bg-white', 'dark:bg-zinc-800', 'text-slate-700', 'dark:text-zinc-200');
+      } else {
+        localVideo.classList.remove('-scale-x-100');
+        toggleMirrorBtn.classList.remove('bg-blue-600', 'text-white');
+        toggleMirrorBtn.classList.add('bg-white', 'dark:bg-zinc-800', 'text-slate-700', 'dark:text-zinc-200');
       }
+    }
+
+    toggleMirrorBtn.addEventListener('click', () => {
+      isMirrored = !isMirrored;
+      updateMirroringUI();
+      showToast(isMirrored ? 'ミラー反転: ON' : 'ミラー反転: OFF', 'fa-right-left');
+    });
+
+    function updateVideoMirroring(label = '') {
+      const isBackCamera = /back|rear|environment|アウト|外/i.test(label);
+      isMirrored = !isBackCamera;
+      updateMirroringUI();
+    }
       return code;
     }
 
