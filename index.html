@@ -433,270 +433,270 @@
     ];
 
     function getIceServers() {
-      const saved = localStorage.getItem('ict_custom_turn_config');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        } catch(e) {
-          console.warn('Failed to parse custom TURN config', e);
-        }
-      }
-      return defaultIceServers;
-    }
+        async function startOutgoingCallStream() {
+          try {
+            const videoConstraints = activeCallType === 'video' 
+              ? (currentDeviceId ? { deviceId: { exact: currentDeviceId } } : { facingMode: 'user' })
+              : false;
 
-    // Global Application State
-    let peer = null;
-    let myPeerId = '';
-    let dataConn = null;
-    let mediaCall = null;
-    let localStream = null;
-    let activeCallType = null; // 'audio' or 'video'
-    let isMicMuted = false;
-    let isCamOff = false;
-    let availableVideoDevices = [];
-    let currentDeviceId = null;
+            localStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              },
+              video: videoConstraints
+            });
 
-    const turnSettingsBtn = document.getElementById('turnSettingsBtn');
-    const turnModal = document.getElementById('turnModal');
-    const closeTurnModalBtn = document.getElementById('closeTurnModalBtn');
-    const turnConfigInput = document.getElementById('turnConfigInput');
-    const saveTurnBtn = document.getElementById('saveTurnBtn');
-    const resetTurnBtn = document.getElementById('resetTurnBtn');
+            await updateAvailableCameras();
 
-    turnSettingsBtn.addEventListener('click', () => {
-      turnConfigInput.value = JSON.stringify(getIceServers(), null, 2);
-      turnModal.classList.remove('hidden');
-    });
-
-    closeTurnModalBtn.addEventListener('click', () => {
-      turnModal.classList.add('hidden');
-    });
-
-    resetTurnBtn.addEventListener('click', () => {
-      localStorage.removeItem('ict_custom_turn_config');
-      turnConfigInput.value = JSON.stringify(defaultIceServers, null, 2);
-      showToast('デフォルト設定に復元しました', 'fa-rotate-left');
-    });
-
-    saveTurnBtn.addEventListener('click', () => {
-      try {
-        const parsed = JSON.parse(turnConfigInput.value);
-        if (!Array.isArray(parsed)) throw new Error('配列である必要があります');
-        localStorage.setItem('ict_custom_turn_config', JSON.stringify(parsed));
-        turnModal.classList.add('hidden');
-        showToast('設定を保存しました。再接続します', 'fa-floppy-disk');
-        if (peer) peer.destroy();
-        initPeerJS();
-      } catch(err) {
-        showToast('JSON形式が正しくありません: ' + err.message, 'fa-triangle-exclamation');
-      }
-    });
-
-    function generateRoomCode() {
-      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-      let result = '';
-      for (let i = 0; i < 6; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return result;
-    }
-
-    const themeToggleBtn = document.getElementById('themeToggleBtn');
-    
-    function initTheme() {
-      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    }
-
-    themeToggleBtn.addEventListener('click', () => {
-      if (document.documentElement.classList.contains('dark')) {
-        document.documentElement.classList.remove('dark');
-        localStorage.theme = 'light';
-      } else {
-        document.documentElement.classList.add('dark');
-        localStorage.theme = 'dark';
-      }
-    });
-
-    initTheme();
-
-    const statusBadge = document.getElementById('statusBadge');
-    const statusText = document.getElementById('statusText');
-    const myRoomCodeEl = document.getElementById('myRoomCode');
-    const copyCodeBtn = document.getElementById('copyCodeBtn');
-    const targetCodeInput = document.getElementById('targetCodeInput');
-    const connectBtn = document.getElementById('connectBtn');
-    const disconnectBtn = document.getElementById('disconnectBtn');
-
-    // Video & Call DOMs
-    const remoteAudio = document.getElementById('remoteAudio');
-    const remoteVideo = document.getElementById('remoteVideo');
-    const localVideo = document.getElementById('localVideo');
-    const localVideoWrapper = document.getElementById('localVideoWrapper');
-    const videoPlaceholder = document.getElementById('videoPlaceholder');
-    const peerDisplayName = document.getElementById('peerDisplayName');
-    const callStatusSubtext = document.getElementById('callStatusSubtext');
-    const activeCallRing = document.getElementById('activeCallRing');
-    const callTriggerBar = document.getElementById('callTriggerBar');
-
-    const startAudioCallBtn = document.getElementById('startAudioCallBtn');
-    const startVideoCallBtn = document.getElementById('startVideoCallBtn');
-    const inCallControls = document.getElementById('inCallControls');
-    const toggleMicBtn = document.getElementById('toggleMicBtn');
-    const toggleCamBtn = document.getElementById('toggleCamBtn');
-    const switchCamBtn = document.getElementById('switchCamBtn');
-    const cameraSelect = document.getElementById('cameraSelect');
-    const hangupBtn = document.getElementById('hangupBtn');
-
-    const outgoingCallModal = document.getElementById('outgoingCallModal');
-    const incomingCallModal = document.getElementById('incomingCallModal');
-
-    async function updateAvailableCameras() {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        availableVideoDevices = devices.filter(d => d.kind === 'videoinput');
-        
-        cameraSelect.innerHTML = '';
-        if (availableVideoDevices.length > 1) {
-          switchCamBtn.classList.remove('hidden');
-          availableVideoDevices.forEach((dev, index) => {
-            const option = document.createElement('option');
-            option.value = dev.deviceId;
-            option.textContent = dev.label || `カメラ ${index + 1}`;
-            if (currentDeviceId && dev.deviceId === currentDeviceId) {
-              option.selected = true;
+            if (activeCallType === 'video') {
+              isCamOff = false;
+              localVideo.srcObject = localStream;
+              localVideo.play().catch(() => {});
+              localVideoWrapper.classList.remove('hidden');
+              const videoTrack = localStream.getVideoTracks()[0];
+              if (videoTrack) {
+                currentDeviceId = videoTrack.getSettings().deviceId;
+              }
+              const devObj = availableVideoDevices.find(d => d.deviceId === currentDeviceId);
+              updateVideoMirroring(devObj ? devObj.label : '');
+            } else {
+              isCamOff = true;
+              switchCamBtn.classList.add('hidden');
+              localVideoWrapper.classList.add('hidden');
             }
-            cameraSelect.appendChild(option);
+
+            isMicMuted = false;
+            updateMicButtonUI();
+            updateCamButtonUI();
+
+            inCallControls.classList.remove('hidden');
+            callTriggerBar.classList.add('hidden');
+
+            mediaCall = peer.call(dataConn.peer, localStream);
+            attachMediaCallListeners(mediaCall);
+
+            showToast('通話を開始しました', 'fa-phone');
+          } catch (err) {
+            console.error('Stream error:', err);
+            showToast('マイク/カメラの取得に失敗しました', 'fa-triangle-exclamation');
+            endCallSession(true);
+          }
+        }
+
+        async function startIncomingCallStream() {
+          try {
+            const videoConstraints = activeCallType === 'video' 
+              ? (currentDeviceId ? { deviceId: { exact: currentDeviceId } } : { facingMode: 'user' })
+              : false;
+
+            localStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              },
+              video: videoConstraints
+            });
+
+            await updateAvailableCameras();
+
+            if (activeCallType === 'video') {
+              isCamOff = false;
+              localVideo.srcObject = localStream;
+              localVideo.play().catch(() => {});
+              localVideoWrapper.classList.remove('hidden');
+              const videoTrack = localStream.getVideoTracks()[0];
+              if (videoTrack) {
+                currentDeviceId = videoTrack.getSettings().deviceId;
+              }
+              const devObj = availableVideoDevices.find(d => d.deviceId === currentDeviceId);
+              updateVideoMirroring(devObj ? devObj.label : '');
+            } else {
+              isCamOff = true;
+              switchCamBtn.classList.add('hidden');
+              localVideoWrapper.classList.add('hidden');
+            }
+
+            isMicMuted = false;
+            updateMicButtonUI();
+            updateCamButtonUI();
+
+            inCallControls.classList.remove('hidden');
+            callTriggerBar.classList.add('hidden');
+
+            if (!mediaCall) {
+              let checkCount = 0;
+              while (!mediaCall && checkCount < 30) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                checkCount++;
+              }
+            }
+
+            if (mediaCall) {
+              mediaCall.answer(localStream);
+              attachMediaCallListeners(mediaCall);
+            } else {
+              showToast('通話接続に失敗しました', 'fa-triangle-exclamation');
+              endCallSession(true);
+              return;
+            }
+
+            showToast('通話を開始しました', 'fa-phone');
+          } catch (err) {
+            console.error('Stream error:', err);
+            showToast('マイク/カメラの取得に失敗しました', 'fa-triangle-exclamation');
+            endCallSession(true);
+          }
+        }
+
+        function attachMediaCallListeners(callObj) {
+          if (!callObj) return;
+
+          callObj.on('stream', (remoteStream) => {
+            handleRemoteStream(remoteStream);
           });
-        } else {
-          switchCamBtn.classList.add('hidden');
-        }
-      } catch (err) {
-        console.warn('Camera enumeration error:', err);
-      }
-    }
 
-    function updateVideoMirroring(devLabel = '') {
-      const isFront = devLabel.toLowerCase().includes('front') || devLabel.toLowerCase().includes('user') || devLabel.includes('インカメラ') || devLabel.includes('前面');
-      if (isFront || (!devLabel && currentDeviceId === availableVideoDevices[0]?.deviceId)) {
-        localVideo.className = 'w-full h-full object-cover transform -scale-x-100';
-      } else {
-        localVideo.className = 'w-full h-full object-cover';
-      }
-    }
-
-    async function switchCameraToDevice(deviceId) {
-      if (!localStream || activeCallType !== 'video') return;
-
-      try {
-        const constraints = {
-          video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' }
-        };
-        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-        const newVideoTrack = newStream.getVideoTracks()[0];
-
-        const oldVideoTrack = localStream.getVideoTracks()[0];
-        if (oldVideoTrack) {
-          oldVideoTrack.stop();
-          localStream.removeTrack(oldVideoTrack);
-        }
-        localStream.addTrack(newVideoTrack);
-
-        currentDeviceId = deviceId || newVideoTrack.getSettings().deviceId;
-        localVideo.srcObject = localStream;
-        localVideo.play().catch(() => {});
-
-        const devObj = availableVideoDevices.find(d => d.deviceId === currentDeviceId);
-        updateVideoMirroring(devObj ? devObj.label : '');
-
-        if (mediaCall && mediaCall.peerConnection) {
-          const senders = mediaCall.peerConnection.getSenders();
-          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-          if (videoSender) {
-            videoSender.replaceTrack(newVideoTrack);
+          if (callObj.peerConnection) {
+            callObj.peerConnection.ontrack = (event) => {
+              if (event.streams && event.streams[0]) {
+                handleRemoteStream(event.streams[0]);
+              }
+            };
           }
+
+          callObj.on('close', () => {
+            endCallSession(false);
+          });
+
+          callObj.on('error', (err) => {
+            console.error('MediaCall Error:', err);
+            endCallSession(false);
+          });
         }
 
-        showToast('カメラを切り替えました', 'fa-camera-rotate');
-      } catch (err) {
-        console.error('Camera switch error:', err);
-        showToast('指定されたカメラの起動に失敗しました', 'fa-triangle-exclamation');
-      }
-    }
-
-    switchCamBtn.addEventListener('click', async () => {
-      if (availableVideoDevices.length > 2) {
-        cameraSelect.classList.toggle('hidden');
-      } else if (availableVideoDevices.length === 2) {
-        const nextDev = availableVideoDevices.find(d => d.deviceId !== currentDeviceId);
-        if (nextDev) {
-          await switchCameraToDevice(nextDev.deviceId);
-        }
-      }
-    });
-
-    cameraSelect.addEventListener('change', async (e) => {
-      cameraSelect.classList.add('hidden');
-      await switchCameraToDevice(e.target.value);
-    });
-
-    async function startOutgoingCallStream() {
-      try {
-        const videoConstraints = activeCallType === 'video' 
-          ? (currentDeviceId ? { deviceId: { exact: currentDeviceId } } : { facingMode: 'user' })
-          : false;
-
-        localStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          },
-          video: videoConstraints
-        });
-
-        await updateAvailableCameras();
-
-        if (activeCallType === 'video') {
-          localVideo.srcObject = localStream;
-          localVideo.play().catch(() => {});
-          localVideoWrapper.classList.remove('hidden');
-          const videoTrack = localStream.getVideoTracks()[0];
-          if (videoTrack) {
-            currentDeviceId = videoTrack.getSettings().deviceId;
-          }
-          const devObj = availableVideoDevices.find(d => d.deviceId === currentDeviceId);
-          updateVideoMirroring(devObj ? devObj.label : '');
-        } else {
-          switchCamBtn.classList.add('hidden');
-        }
-
-        updateMicButtonUI();
-        updateCamButtonUI();
-
-        inCallControls.classList.remove('hidden');
-        callTriggerBar.classList.add('hidden');
-
-        mediaCall = peer.call(dataConn.peer, localStream);
-
-        mediaCall.on('stream', (remoteStream) => {
+        function handleRemoteStream(remoteStream) {
           remoteAudio.srcObject = remoteStream;
           remoteAudio.play().catch(e => console.log('Remote audio play error:', e));
 
           remoteVideo.srcObject = remoteStream;
           remoteVideo.play().catch(() => {});
 
-          if (remoteStream.getVideoTracks().length > 0 && activeCallType === 'video') {
-            remoteVideo.classList.remove('hidden');
-            videoPlaceholder.classList.add('hidden');
+          const checkVideoTracks = () => {
+            const vTracks = remoteStream.getVideoTracks();
+            const hasActiveVideo = vTracks.length > 0 && vTracks.some(t => t.enabled);
+            if (hasActiveVideo) {
+              remoteVideo.classList.remove('hidden');
+              videoPlaceholder.classList.add('hidden');
+            } else {
+              remoteVideo.classList.add('hidden');
+              videoPlaceholder.classList.remove('hidden');
+              activeCallRing.classList.remove('hidden');
+            }
+          };
+
+          checkVideoTracks();
+
+          remoteStream.onaddtrack = () => {
+            checkVideoTracks();
+            remoteVideo.play().catch(() => {});
+          };
+          remoteStream.onremovetrack = () => {
+            checkVideoTracks();
+          };
+        }
+
+        function updateMicButtonUI() {
+          const hasAudioTrack = localStream && localStream.getAudioTracks().length > 0 && localStream.getAudioTracks()[0].enabled;
+          if (isMicMuted || !hasAudioTrack) {
+            toggleMicBtn.className = 'w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center transition border border-red-600 shadow-md';
+            toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone-slash text-sm"></i>';
           } else {
-            remoteVideo.classList.add('hidden');
-            videoPlaceholder.classList.remove('hidden');
-            activeCallRing.classList.remove('hidden');
+            toggleMicBtn.className = 'w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm hover:bg-slate-50 dark:hover:bg-zinc-700';
+            toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone text-sm"></i>';
+          }
+        }
+
+        function updateCamButtonUI() {
+          const hasVideoTrack = localStream && localStream.getVideoTracks().length > 0 && localStream.getVideoTracks()[0].enabled;
+          if (isCamOff || !hasVideoTrack) {
+            toggleCamBtn.className = 'w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center transition border border-red-600 shadow-md';
+            toggleCamBtn.innerHTML = '<i class="fa-solid fa-video-slash text-sm"></i>';
+          } else {
+            toggleCamBtn.className = 'w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm hover:bg-slate-50 dark:hover:bg-zinc-700';
+            toggleCamBtn.innerHTML = '<i class="fa-solid fa-video text-sm"></i>';
+          }
+        }
+
+        toggleMicBtn.addEventListener('click', () => {
+          if (localStream && localStream.getAudioTracks().length > 0) {
+            isMicMuted = !isMicMuted;
+            localStream.getAudioTracks()[0].enabled = !isMicMuted;
+            updateMicButtonUI();
+          }
+        });
+
+        toggleCamBtn.addEventListener('click', async () => {
+          if (!localStream) return;
+
+          let videoTrack = localStream.getVideoTracks()[0];
+
+          if (!videoTrack) {
+            // Audio call mode: Dynamically acquire camera track and add to session
+            try {
+              const videoConstraints = currentDeviceId 
+                ? { deviceId: { exact: currentDeviceId } } 
+                : { facingMode: 'user' };
+
+              const cameraStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+              videoTrack = cameraStream.getVideoTracks()[0];
+
+              if (videoTrack) {
+                localStream.addTrack(videoTrack);
+                isCamOff = false;
+
+                await updateAvailableCameras();
+
+                localVideo.srcObject = localStream;
+                localVideo.play().catch(() => {});
+                localVideoWrapper.classList.remove('hidden');
+
+                const devObj = availableVideoDevices.find(d => d.deviceId === videoTrack.getSettings().deviceId);
+                updateVideoMirroring(devObj ? devObj.label : '');
+
+                // Send video track over existing WebRTC PeerConnection
+                if (mediaCall && mediaCall.peerConnection) {
+                  const senders = mediaCall.peerConnection.getSenders();
+                  const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                  if (videoSender) {
+                    videoSender.replaceTrack(videoTrack);
+                  } else {
+                    mediaCall.peerConnection.addTrack(videoTrack, localStream);
+                  }
+                }
+
+                updateCamButtonUI();
+                showToast('カメラをONにしました', 'fa-video');
+              }
+            } catch (err) {
+              console.error('Camera activation error:', err);
+              showToast('カメラの起動に失敗しました', 'fa-triangle-exclamation');
+            }
+          } else {
+            // Toggle existing camera ON / OFF
+            isCamOff = !isCamOff;
+            videoTrack.enabled = !isCamOff;
+
+            if (isCamOff) {
+              localVideoWrapper.classList.add('hidden');
+              showToast('カメラをOFFにしました', 'fa-video-slash');
+            } else {
+              localVideoWrapper.classList.remove('hidden');
+              localVideo.play().catch(() => {});
+              showToast('カメラをONにしました', 'fa-video');
+            }
+            updateCamButtonUI();
           }
         });
 
