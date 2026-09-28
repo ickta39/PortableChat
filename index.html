@@ -7,7 +7,7 @@
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome for essential icons -->
+  <!-- FontAwesome for Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- PeerJS for WebRTC P2P Signaling -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -22,9 +22,9 @@
           },
           colors: {
             brand: {
-              blue: '#2563eb',    // Primary action / accent
-              green: '#059669',   // Connected / Success / Answer
-              red: '#dc2626',     // Disconnect / Reject / Hangup
+              blue: '#2563eb',
+              green: '#059669',
+              red: '#dc2626',
             }
           }
         }
@@ -33,6 +33,7 @@
   </script>
 
   <style>
+    /* Custom Animations */
     @keyframes pulse-ring {
       0% { transform: scale(0.95); opacity: 0.8; }
       50% { transform: scale(1.15); opacity: 0.3; }
@@ -42,6 +43,7 @@
       animation: pulse-ring 1.8s infinite ease-in-out;
     }
 
+    /* Scrollbar styling */
     ::-webkit-scrollbar {
       width: 6px;
     }
@@ -56,6 +58,7 @@
 </head>
 <body class="h-full flex flex-col font-sans antialiased bg-slate-100 text-slate-800 dark:bg-zinc-900 dark:text-zinc-100 transition-colors duration-200">
 
+  <!-- Top Navigation Header -->
   <header class="bg-white dark:bg-zinc-800 border-b border-slate-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
     <div class="flex items-center gap-3">
       <div class="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow">
@@ -69,7 +72,7 @@
       </div>
     </div>
 
-    <!-- Status Badge, Theme Toggle & Disconnect -->
+    <!-- Status Badge, Controls & Actions -->
     <div class="flex items-center gap-2 md:gap-3">
       <div id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-medium">
         <span class="w-2 h-2 rounded-full bg-slate-400"></span>
@@ -95,8 +98,9 @@
     </div>
   </header>
 
+  <!-- Peer ID & Connection Toolbar -->
   <section class="bg-slate-200/70 dark:bg-zinc-800/80 border-b border-slate-300 dark:border-zinc-700 px-4 py-2.5 shrink-0 flex flex-wrap items-center justify-between gap-3">
-    <!-- Local Room Code -->
+    <!-- Local Room Code Display -->
     <div class="flex items-center gap-2 text-xs md:text-sm">
       <span class="text-slate-600 dark:text-zinc-400 font-medium">自分のコード:</span>
       <span id="myRoomCode" class="font-mono font-bold text-blue-600 dark:text-blue-400 bg-white dark:bg-zinc-900 px-2.5 py-1 rounded border border-slate-300 dark:border-zinc-700 tracking-wider">------</span>
@@ -121,21 +125,22 @@
     </div>
   </section>
 
+  <!-- Main Content Layout -->
   <main class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
 
     <!-- Video & Call Area -->
     <section class="flex-1 bg-slate-100 dark:bg-zinc-900 relative flex flex-col justify-center items-center p-3 md:p-4 overflow-hidden transition-colors duration-200">
       
-      <!-- Video Screen Wrapper -->
+      <!-- Video Viewport -->
       <div class="relative w-full h-full max-w-4xl flex items-center justify-center rounded-xl overflow-hidden bg-slate-200/70 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800 shadow-sm transition-colors duration-200">
         
-        <!-- Dedicated Audio Element for Audio Playback -->
+        <!-- Remote Audio Tag -->
         <audio id="remoteAudio" autoplay class="hidden"></audio>
 
         <!-- Remote Stream Video -->
         <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover hidden bg-black"></video>
 
-        <!-- Placeholder when video is not active -->
+        <!-- Standby Placeholder -->
         <div id="videoPlaceholder" class="flex flex-col items-center justify-center gap-3 p-6 text-center">
           <div class="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 flex items-center justify-center text-slate-500 dark:text-zinc-400 text-3xl md:text-4xl shadow-sm relative">
             <i class="fa-solid fa-headset"></i>
@@ -153,7 +158,7 @@
           <span class="absolute bottom-1 left-1.5 text-[10px] bg-zinc-900/80 px-1.5 py-0.5 rounded text-zinc-300">自分</span>
         </div>
 
-        <!-- In-Call Control Toolbar -->
+        <!-- Active Call Control Toolbar -->
         <div id="inCallControls" class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 md:gap-3 bg-white/90 dark:bg-zinc-900/90 border border-slate-300 dark:border-zinc-700 px-3 md:px-4 py-2 rounded-full shadow-xl hidden backdrop-blur">
           <button id="toggleMicBtn" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm" title="マイク ON/OFF">
             <i class="fa-solid fa-microphone text-sm"></i>
@@ -162,7 +167,7 @@
             <i class="fa-solid fa-video text-sm"></i>
           </button>
           
-          <!-- Camera Switcher Dropdown/Button -->
+          <!-- Camera Switcher -->
           <div class="relative">
             <button id="switchCamBtn" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm hidden" title="カメラ切替">
               <i class="fa-solid fa-camera-rotate text-sm"></i>
@@ -178,7 +183,7 @@
 
       </div>
 
-      <!-- Quick Call Initiation Actions -->
+      <!-- Quick Call Actions -->
       <div id="callTriggerBar" class="mt-3 flex items-center gap-3 opacity-50 pointer-events-none transition-all">
         <button id="startAudioCallBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs md:text-sm transition flex items-center gap-2 shadow">
           <i class="fa-solid fa-phone"></i>
@@ -192,7 +197,7 @@
 
     </section>
 
-    <!-- Chat Sidebar -->
+    <!-- Chat Sidebar Panel -->
     <section class="w-full md:w-80 lg:w-88 bg-white dark:bg-zinc-800/90 border-t md:border-t-0 md:border-l border-slate-200 dark:border-zinc-700 flex flex-col h-64 md:h-full shrink-0">
       
       <!-- Chat Header -->
@@ -206,7 +211,7 @@
         </button>
       </div>
 
-      <!-- Messages Log -->
+      <!-- Chat Log Container -->
       <div id="chatMessages" class="flex-1 p-3 overflow-y-auto space-y-2 text-xs md:text-sm flex flex-col">
         <div class="text-center text-xs text-slate-400 my-auto py-4">
           <i class="fa-solid fa-comments text-slate-300 dark:text-zinc-600 text-2xl mb-2 block"></i>
@@ -214,7 +219,7 @@
         </div>
       </div>
 
-      <!-- Chat Input -->
+      <!-- Input Form -->
       <form id="chatForm" class="p-2.5 bg-slate-50 dark:bg-zinc-800 border-t border-slate-200 dark:border-zinc-700 flex items-center gap-2">
         <input 
           type="text" 
@@ -280,7 +285,7 @@
     </div>
   </div>
 
-  <!-- STUN / TURN Server Config Modal -->
+  <!-- STUN / TURN Settings Modal -->
   <div id="turnModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col space-y-4">
       <div class="flex items-center justify-between border-b border-slate-200 dark:border-zinc-700 pb-3">
@@ -310,17 +315,22 @@
     </div>
   </div>
 
-  <!-- Toast Notification -->
+  <!-- Toast Notification Bar -->
   <div id="toast" class="fixed bottom-4 left-4 bg-slate-800 text-white px-3 py-2 rounded-lg shadow-lg text-xs flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
     <i id="toastIcon" class="fa-solid fa-circle-info text-blue-400"></i>
     <span id="toastMsg">メッセージ</span>
   </div>
 
+  <!-- Javascript Application Code -->
   <script>
-    /* Continuous Audio Synthesizer for Calling & Ringing Sound Effects */
+    /**
+     * Web Audio API Synthesizer with Amplified Sound Output
+     * 音量をしっかり聞き取れるレベルに増幅したシンセサイザー
+     */
     class ToneSynthesizer {
       constructor() {
         this.ctx = null;
+        this.masterGain = null;
         this.timer = null;
       }
 
@@ -329,6 +339,10 @@
           const AudioContext = window.AudioContext || window.webkitAudioContext;
           if (AudioContext) {
             this.ctx = new AudioContext();
+            this.masterGain = this.ctx.createGain();
+            // 音量設定: 十分に大きく聞き取りやすい設定 (1.0)
+            this.masterGain.gain.value = 1.0;
+            this.masterGain.connect(this.ctx.destination);
           }
         }
         if (this.ctx && this.ctx.state === 'suspended') {
@@ -336,41 +350,64 @@
         }
       }
 
+      /**
+       * 着信メロディの再生 (大音量＆クリアなトーン)
+       */
       startIncomingRingtone() {
         this.init();
         this.stop();
         if (!this.ctx) return;
 
-        // Upbeat, happy tropical/marimba-style arpeggio sequence
-        const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50]; // C5, E5, G5, C6
-        let step = 0;
-
+        // 明るく存在感のあるチャイム音階 (C5, E5, G5, C6)
+        const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50];
+        
         const playMelodySequence = () => {
           if (!this.ctx) return;
           
           notes.forEach((freq, idx) => {
-            const noteTime = this.ctx.currentTime + (idx * 0.12);
+            const noteTime = this.ctx.currentTime + (idx * 0.13);
+            
+            // 主音オシレータ (角形波でアタック感を強調)
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
 
-            osc.type = 'triangle'; // Warm marimba-like tone
+            osc.type = 'triangle';
             osc.frequency.setValueAtTime(freq, noteTime);
 
-            gain.gain.setValueAtTime(0.18, noteTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.25);
+            // 音量ゲインを大幅に増幅 (0.18 -> 0.65)
+            gain.gain.setValueAtTime(0.65, noteTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.35);
 
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(this.masterGain);
 
             osc.start(noteTime);
-            osc.stop(noteTime + 0.26);
+            osc.stop(noteTime + 0.36);
+
+            // 倍音（オクターブ上）を重ねてさらに高音域の通りを良くする
+            const subOsc = this.ctx.createOscillator();
+            const subGain = this.ctx.createGain();
+            subOsc.type = 'sine';
+            subOsc.frequency.setValueAtTime(freq * 2, noteTime);
+
+            subGain.gain.setValueAtTime(0.25, noteTime);
+            subGain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.2);
+
+            subOsc.connect(subGain);
+            subGain.connect(this.masterGain);
+
+            subOsc.start(noteTime);
+            subOsc.stop(noteTime + 0.22);
           });
         };
 
         playMelodySequence();
-        this.timer = setInterval(playMelodySequence, 1600);
+        this.timer = setInterval(playMelodySequence, 1500);
       }
 
+      /**
+       * 発信中（呼び出し音）の再生
+       */
       startOutgoingCallingTone() {
         this.init();
         this.stop();
@@ -380,20 +417,22 @@
           if (!this.ctx) return;
           const now = this.ctx.currentTime;
           
-          [440, 554.37, 659.25].forEach((freq, i) => { // A4 - C#5 - E5 cheerful chord
+          // 明るいコード音 (A4, C#5, E5)
+          [440, 554.37, 659.25].forEach((freq, i) => {
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.type = 'sine';
             osc.frequency.setValueAtTime(freq, now + i * 0.08);
 
-            gain.gain.setValueAtTime(0.08, now + i * 0.08);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.4);
+            // 音量を適切に増幅 (0.08 -> 0.35)
+            gain.gain.setValueAtTime(0.35, now + i * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.45);
 
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(this.masterGain);
 
             osc.start(now + i * 0.08);
-            osc.stop(now + i * 0.08 + 0.45);
+            osc.stop(now + i * 0.08 + 0.5);
           });
         };
 
@@ -432,6 +471,7 @@
       return defaultIceServers;
     }
 
+    // App State Variables
     let peer = null;
     let myPeerId = '';
     let dataConn = null;
@@ -441,10 +481,13 @@
     let activeCallType = 'audio';
     let isMicMuted = false;
     let isCamOff = false;
+    let isRemoteCamOff = false;
     let availableVideoDevices = [];
     let currentDeviceId = null;
 
-    // Helper to generate a dummy 1x1 black video track for initial audio-only SDP negotiation
+    /**
+     * Create dummy video track for initial audio-only SDP negotiation
+     */
     function createDummyVideoTrack() {
       const canvas = document.createElement('canvas');
       canvas.width = 16;
@@ -458,7 +501,7 @@
       return track;
     }
 
-    // DOM Elements
+    // DOM Elements Cache
     const statusBadge = document.getElementById('statusBadge');
     const statusText = document.getElementById('statusText');
     const turnSettingsBtn = document.getElementById('turnSettingsBtn');
@@ -761,8 +804,6 @@
       }
     }
 
-    let isRemoteCamOff = false;
-
     function updateMicButtonUI() {
       const hasAudioTrack = localStream && localStream.getAudioTracks().length > 0 && localStream.getAudioTracks()[0].enabled;
       if (isMicMuted || !hasAudioTrack) {
@@ -800,7 +841,7 @@
       const isDummy = dummyVideoTrack && currentVideoTrack === dummyVideoTrack;
 
       if (isCamOff || isDummy) {
-        // Turning camera ON
+        // Toggle Camera ON
         try {
           const videoConstraints = currentDeviceId 
             ? { deviceId: { exact: currentDeviceId } } 
@@ -810,7 +851,6 @@
           const newRealVideoTrack = cameraStream.getVideoTracks()[0];
 
           if (newRealVideoTrack) {
-            // Replace existing video/dummy track in localStream
             if (currentVideoTrack) {
               localStream.removeTrack(currentVideoTrack);
               currentVideoTrack.stop();
@@ -828,7 +868,6 @@
             const devObj = availableVideoDevices.find(d => d.deviceId === newRealVideoTrack.getSettings().deviceId);
             updateVideoMirroring(devObj ? devObj.label : '');
 
-            // Swap track in PeerConnection sender to transmit to remote partner instantly
             if (mediaCall && mediaCall.peerConnection) {
               const senders = mediaCall.peerConnection.getSenders();
               const videoSender = senders.find(s => s.track && s.track.kind === 'video');
@@ -839,7 +878,6 @@
               }
             }
 
-            // Inform remote peer about camera activation
             sendSignal('CAMERA_STATE', { enabled: true });
 
             updateCamButtonUI();
@@ -850,7 +888,7 @@
           showToast('カメラの起動に失敗しました', 'fa-triangle-exclamation');
         }
       } else {
-        // Turning camera OFF -> Replace back with dummy track
+        // Toggle Camera OFF
         isCamOff = true;
         const realTrack = localStream.getVideoTracks()[0];
 
@@ -1242,7 +1280,7 @@
       sendSignal('REJECT_CALL');
     });
 
-    // Theme Switch Handler
+    // Dark/Light Theme Switching
     themeToggleBtn.addEventListener('click', () => {
       document.documentElement.classList.toggle('dark');
     });
@@ -1251,7 +1289,7 @@
       document.documentElement.classList.add('dark');
     }
 
-    // STUN / TURN Modal Handlers
+    // STUN / TURN Modal Event Handlers
     turnSettingsBtn.addEventListener('click', () => {
       turnConfigInput.value = JSON.stringify(getIceServers(), null, 2);
       turnModal.classList.remove('hidden');
@@ -1283,6 +1321,7 @@
       }
     });
 
+    // App Initialization
     window.onload = () => {
       initPeerJS();
     };
