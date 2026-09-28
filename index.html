@@ -536,6 +536,57 @@
     let availableVideoDevices = [];
     let currentDeviceId = null;
 
+    function updateMicButtonUI() {
+      if (!localStream) return;
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !isMicMuted;
+      }
+      if (isMicMuted) {
+        toggleMicBtn.classList.add('bg-red-600', 'text-white');
+        toggleMicBtn.classList.remove('bg-white', 'dark:bg-zinc-800', 'text-slate-700', 'dark:text-zinc-200');
+        toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone-slash text-sm"></i>';
+      } else {
+        toggleMicBtn.classList.remove('bg-red-600', 'text-white');
+        toggleMicBtn.classList.add('bg-white', 'dark:bg-zinc-800', 'text-slate-700', 'dark:text-zinc-200');
+        toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone text-sm"></i>';
+      }
+    }
+
+    function updateCamButtonUI() {
+      if (isCamOff) {
+        toggleCamBtn.classList.add('bg-red-600', 'text-white');
+        toggleCamBtn.classList.remove('bg-white', 'dark:bg-zinc-800', 'text-slate-700', 'dark:text-zinc-200');
+        toggleCamBtn.innerHTML = '<i class="fa-solid fa-video-slash text-sm"></i>';
+      } else {
+        toggleCamBtn.classList.remove('bg-red-600', 'text-white');
+        toggleCamBtn.classList.add('bg-white', 'dark:bg-zinc-800', 'text-slate-700', 'dark:text-zinc-200');
+        toggleCamBtn.innerHTML = '<i class="fa-solid fa-video text-sm"></i>';
+      }
+    }
+
+    function checkRemoteVideoDisplay() {
+      const hasRemoteVideo = remoteVideo.srcObject && 
+        remoteVideo.srcObject.getVideoTracks && 
+        remoteVideo.srcObject.getVideoTracks().length > 0 &&
+        remoteVideo.srcObject.getVideoTracks().some(t => t.enabled && t.readyState === 'live') &&
+        !isRemoteCamOff;
+
+      if (hasRemoteVideo && activeCallType === 'video') {
+        remoteVideo.classList.remove('hidden');
+        videoPlaceholder.classList.add('hidden');
+        activeCallRing.classList.add('hidden');
+      } else {
+        remoteVideo.classList.add('hidden');
+        videoPlaceholder.classList.remove('hidden');
+        if (dataConn && dataConn.open) {
+          activeCallRing.classList.remove('hidden');
+        } else {
+          activeCallRing.classList.add('hidden');
+        }
+      }
+    }
+
     const statusBadge = document.getElementById('statusBadge');
     const statusText = document.getElementById('statusText');
     const turnSettingsBtn = document.getElementById('turnSettingsBtn');
@@ -897,6 +948,13 @@
           soundEffect.ctx.resume();
         }
       }, { once: false });
+    });
+
+    toggleMicBtn.addEventListener('click', () => {
+      if (!localStream) return;
+      isMicMuted = !isMicMuted;
+      updateMicButtonUI();
+      showToast(isMicMuted ? 'マイクをミュートにしました' : 'マイクをONにしました', isMicMuted ? 'fa-microphone-slash' : 'fa-microphone');
     });
 
     toggleCamBtn.addEventListener('click', async () => {
