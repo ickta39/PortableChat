@@ -79,6 +79,10 @@
         <i class="fa-solid fa-gear"></i>
       </button>
 
+      <button id="audioHelpBtn" class="p-2 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-slate-200 dark:hover:bg-zinc-700 transition text-sm" title="聞こえない・マイクが使えない場合">
+        <i class="fa-solid fa-circle-question"></i>
+      </button>
+
       <button id="themeToggleBtn" class="p-2 rounded-lg text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition text-sm" title="テーマ切り替え">
         <i class="fa-solid fa-moon dark:hidden"></i>
         <i class="fa-solid fa-sun hidden dark:block"></i>
@@ -300,6 +304,63 @@
   <div id="toast" class="fixed bottom-4 left-4 bg-slate-800 text-white px-3 py-2 rounded-lg shadow-lg text-xs flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
     <i id="toastIcon" class="fa-solid fa-circle-info text-blue-400"></i>
     <span id="toastMsg">メッセージ</span>
+  </div>
+
+  <!-- Audio Unlock Banner (Displays when Autoplay is blocked) -->
+  <div id="audioUnlockBanner" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-slate-900 font-semibold px-4 py-2 rounded-full shadow-lg flex items-center gap-3 text-xs md:text-sm animate-bounce hidden">
+    <i class="fa-solid fa-volume-high text-base"></i>
+    <span>ブラウザにより音声再生がブロックされています</span>
+    <button id="unlockAudioBtn" class="bg-slate-900 text-white px-3 py-1 rounded-full text-xs font-bold hover:bg-slate-800 transition">
+      音声を有効化
+    </button>
+  </div>
+
+  <!-- Audio Troubleshooting Modal -->
+  <div id="audioHelpModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-200 dark:border-zinc-700 pb-3">
+        <h3 class="font-bold text-sm md:text-base flex items-center gap-2 text-amber-500">
+          <i class="fa-solid fa-volume-xmark"></i>
+          音が出ない・聞こえない時のチェックリスト
+        </h3>
+        <button id="closeAudioHelpModalBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <div class="text-xs text-slate-600 dark:text-zinc-300 space-y-3">
+        <div class="flex items-start gap-2.5 bg-slate-100 dark:bg-zinc-900 p-2.5 rounded-lg">
+          <span class="bg-amber-500 text-white w-5 h-5 rounded-full flex items-center justify-center shrink-0 font-bold text-[10px]">1</span>
+          <div>
+            <p class="font-bold text-slate-800 dark:text-zinc-100">画面上の「音声を有効化」を押す</p>
+            <p class="text-[11px] text-slate-500 dark:text-zinc-400">ブラウザの自動再生制限により音声が一時停止されている場合があります。</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-2.5 bg-slate-100 dark:bg-zinc-900 p-2.5 rounded-lg">
+          <span class="bg-amber-500 text-white w-5 h-5 rounded-full flex items-center justify-center shrink-0 font-bold text-[10px]">2</span>
+          <div>
+            <p class="font-bold text-slate-800 dark:text-zinc-100">端末・スピーカーの音量を確認</p>
+            <p class="text-[11px] text-slate-500 dark:text-zinc-400">PC/スマートフォンの消音モード（マナーモード）やスピーカー音量を確認してください。</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-2.5 bg-slate-100 dark:bg-zinc-900 p-2.5 rounded-lg">
+          <span class="bg-amber-500 text-white w-5 h-5 rounded-full flex items-center justify-center shrink-0 font-bold text-[10px]">3</span>
+          <div>
+            <p class="font-bold text-slate-800 dark:text-zinc-100">ブラウザのタブミュートを確認</p>
+            <p class="text-[11px] text-slate-500 dark:text-zinc-400">ブラウザのタブ（画面最上部）のスピーカーマークに斜線が入っていないか確認してください。</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-2.5 bg-slate-100 dark:bg-zinc-900 p-2.5 rounded-lg">
+          <span class="bg-amber-500 text-white w-5 h-5 rounded-full flex items-center justify-center shrink-0 font-bold text-[10px]">4</span>
+          <div>
+            <p class="font-bold text-slate-800 dark:text-zinc-100">マイク・カメラアクセスの許可</p>
+            <p class="text-[11px] text-slate-500 dark:text-zinc-400">URLバーの鍵アイコンから、本サイトのマイク利用権限が許可されているか確認してください。</p>
+          </div>
+        </div>
+      </div>
+      <button id="forceAudioUnlockBtn" class="w-full py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs rounded-lg transition shadow">
+        オーディオ再生を今すぐテスト＆有効化
+      </button>
+    </div>
   </div>
 
   <script>
@@ -771,7 +832,16 @@
 
     function handleRemoteStream(remoteStream) {
       remoteAudio.srcObject = remoteStream;
-      remoteAudio.play().catch(e => console.log('Remote audio play error:', e));
+      remoteAudio.volume = 1.0;
+      
+      const playPromise = remoteAudio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.warn('Autoplay blocked for remote audio:', error);
+          document.getElementById('audioUnlockBanner').classList.remove('hidden');
+          showToast('音声再生がブロックされています。「音声を有効化」を押してください', 'fa-volume-xmark');
+        });
+      }
 
       remoteVideo.srcObject = remoteStream;
       remoteVideo.play().catch(() => {});
@@ -785,48 +855,48 @@
       remoteStream.onremovetrack = () => { checkRemoteVideoDisplay(); };
     }
 
-    function checkRemoteVideoDisplay() {
-      if (!remoteVideo.srcObject) return;
-      const vTracks = remoteVideo.srcObject.getVideoTracks();
-      const hasActiveVideo = vTracks.length > 0 && vTracks.some(t => t.enabled) && !isRemoteCamOff;
-
-      if (hasActiveVideo) {
-        remoteVideo.classList.remove('hidden');
-        videoPlaceholder.classList.add('hidden');
+    // Audio Unlock Handlers
+    function unlockAudioContextAndElements() {
+      soundEffect.init();
+      if (remoteAudio.srcObject) {
+        remoteAudio.play().then(() => {
+          document.getElementById('audioUnlockBanner').classList.add('hidden');
+          showToast('音声を有効化しました', 'fa-volume-high');
+        }).catch(err => {
+          console.error('Manual audio play failed:', err);
+        });
       } else {
-        remoteVideo.classList.add('hidden');
-        videoPlaceholder.classList.remove('hidden');
-        activeCallRing.classList.remove('hidden');
+        soundEffect.playChatNotification();
+        document.getElementById('audioUnlockBanner').classList.add('hidden');
+        showToast('オーディオ出力を有効化しました', 'fa-volume-high');
       }
     }
 
-    function updateMicButtonUI() {
-      const hasAudioTrack = localStream && localStream.getAudioTracks().length > 0 && localStream.getAudioTracks()[0].enabled;
-      if (isMicMuted || !hasAudioTrack) {
-        toggleMicBtn.className = 'w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center transition border border-red-600 shadow-md';
-        toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone-slash text-sm"></i>';
-      } else {
-        toggleMicBtn.className = 'w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm hover:bg-slate-50 dark:hover:bg-zinc-700';
-        toggleMicBtn.innerHTML = '<i class="fa-solid fa-microphone text-sm"></i>';
-      }
-    }
+    document.getElementById('unlockAudioBtn').addEventListener('click', unlockAudioContextAndElements);
+    document.getElementById('forceAudioUnlockBtn').addEventListener('click', () => {
+      unlockAudioContextAndElements();
+      document.getElementById('audioHelpModal').classList.add('hidden');
+    });
 
-    function updateCamButtonUI() {
-      if (isCamOff) {
-        toggleCamBtn.className = 'w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center transition border border-red-600 shadow-md';
-        toggleCamBtn.innerHTML = '<i class="fa-solid fa-video-slash text-sm"></i>';
-      } else {
-        toggleCamBtn.className = 'w-10 h-10 rounded-full bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 flex items-center justify-center transition border border-slate-300 dark:border-zinc-700 shadow-sm hover:bg-slate-50 dark:hover:bg-zinc-700';
-        toggleCamBtn.innerHTML = '<i class="fa-solid fa-video text-sm"></i>';
-      }
-    }
+    const audioHelpBtn = document.getElementById('audioHelpBtn');
+    const audioHelpModal = document.getElementById('audioHelpModal');
+    const closeAudioHelpModalBtn = document.getElementById('closeAudioHelpModalBtn');
 
-    toggleMicBtn.addEventListener('click', () => {
-      if (localStream && localStream.getAudioTracks().length > 0) {
-        isMicMuted = !isMicMuted;
-        localStream.getAudioTracks()[0].enabled = !isMicMuted;
-        updateMicButtonUI();
-      }
+    audioHelpBtn.addEventListener('click', () => {
+      audioHelpModal.classList.remove('hidden');
+    });
+
+    closeAudioHelpModalBtn.addEventListener('click', () => {
+      audioHelpModal.classList.add('hidden');
+    });
+
+    // Automatically trigger audio context resume on any user interaction
+    ['click', 'touchstart', 'keydown'].forEach(evt => {
+      document.addEventListener(evt, () => {
+        if (soundEffect.ctx && soundEffect.ctx.state === 'suspended') {
+          soundEffect.ctx.resume();
+        }
+      }, { once: false });
     });
 
     toggleCamBtn.addEventListener('click', async () => {
